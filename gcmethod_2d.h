@@ -20,7 +20,7 @@ extern "C"
 #include <boost/property_tree/ini_parser.hpp>
 #include "vector2.h"
 
-class simple2Dgcmethod
+class gcmethod_2d
 {	
 	std::string path;
 	double lambda_x, lambda_y;
@@ -33,7 +33,7 @@ class simple2Dgcmethod
 	std::vector<double> u2;
 
 public:
-	simple2Dgcmethod(std::string path);
+	gcmethod_2d(std::string path);
 	void create_mesh();
 	void calculate();
 	void save_to_vtk(std::string name);
@@ -47,12 +47,12 @@ private:
 	void step();
 };
 
-simple2Dgcmethod::simple2Dgcmethod(std::string path)
+gcmethod_2d::gcmethod_2d(std::string path)
 {
 	read_from_file(path);
 }
 
-void simple2Dgcmethod::save_to_vtk(std::string name)
+void gcmethod_2d::save_to_vtk(std::string name)
 {
 	std::ofstream vtk_file(name.c_str());
 	vtk_file << "# vtk DataFile Version 3.0\nVx data\nASCII\n\n";
@@ -67,7 +67,7 @@ void simple2Dgcmethod::save_to_vtk(std::string name)
 		vtk_file << u1.at(i) << " 0.0 0.0\n";
 }
 
-void simple2Dgcmethod::step_any(vector2d step, std::vector<double> & u0, std::vector<double> & u)
+void gcmethod_2d::step_any(vector2d step, std::vector<double> & u0, std::vector<double> & u)
 {
 	vector2d p0, p, q, r;
 	for (int i = 0; i < mesh.numberofpoints; i++)
@@ -113,7 +113,7 @@ void simple2Dgcmethod::step_any(vector2d step, std::vector<double> & u0, std::ve
 	}
 }
 
-void simple2Dgcmethod::approximate_linear(vector2d p, int p1, int p2, int p3, std::vector<double> & u0, std::vector<double> & u)
+void gcmethod_2d::approximate_linear(vector2d p, int p1, int p2, int p3, std::vector<double> & u0, std::vector<double> & u)
 {
 	double x1 = mesh.pointlist[2*p1 + 0]; double y1 = mesh.pointlist[2*p1 + 1]; double z1 = u0.at(p1);
 	double x2 = mesh.pointlist[2*p2 + 0]; double y2 = mesh.pointlist[2*p2 + 1]; double z2 = u0.at(p2);
@@ -147,7 +147,7 @@ void simple2Dgcmethod::approximate_linear(vector2d p, int p1, int p2, int p3, st
 	*/
 }
 
-void simple2Dgcmethod::step()
+void gcmethod_2d::step()
 {
 	// time step for the equation u_t + lx*u_x + ly*u_y = 0; 
 	step_any(vector2d(-tau/2 * lambda_x, 0), u1, u2);
@@ -155,7 +155,7 @@ void simple2Dgcmethod::step()
 	//u1.swap(u2);
 }
 
-void simple2Dgcmethod::calculate()
+void gcmethod_2d::calculate()
 {
 	init();
 	for (int i = 0; i < number_of_steps; i++)
@@ -167,7 +167,7 @@ void simple2Dgcmethod::calculate()
 	save_to_vtk("out/out_" + std::to_string(number_of_steps) + ".vtk");
 }
 
-void simple2Dgcmethod::init()
+void gcmethod_2d::init()
 {
 	u1.resize(mesh.numberofpoints);
 	u2.resize(mesh.numberofpoints);
@@ -175,7 +175,7 @@ void simple2Dgcmethod::init()
 		u1.at(i) = initial_conditions(mesh.pointlist[2*i], mesh.pointlist[2*i+1]);
 }
 
-void simple2Dgcmethod::read_from_file(std::string path)
+void gcmethod_2d::read_from_file(std::string path)
 {
     using std::string;
     using std::cout;
@@ -206,7 +206,7 @@ void simple2Dgcmethod::read_from_file(std::string path)
     number_of_steps = pt.get<int>("Method.number_of_steps");
 }
 
-void simple2Dgcmethod::create_mesh()
+void gcmethod_2d::create_mesh()
 {
 	// Setting triangulateio in and out:
 	triangulateio in;
@@ -254,7 +254,7 @@ void simple2Dgcmethod::create_mesh()
     find_neighbors(mesh);
 }
 
-void simple2Dgcmethod::find_neighbors(triangulateio & mesh)
+void gcmethod_2d::find_neighbors(triangulateio & mesh)
 {
 	neighbors.resize(mesh.numberofpoints);
 	for ( int i = 0; i < mesh.numberofedges; i++)

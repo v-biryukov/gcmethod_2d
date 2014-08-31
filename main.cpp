@@ -1,8 +1,8 @@
-#include "simple2Dgc_method.h"
+#include "gcmethod_2d.h"
 
 int main()
 {
-	simple2Dgcmethod test = simple2Dgcmethod("simple2Dgc_method.ini");
+	gcmethod_2d test = gcmethod_2d("gcmethod_2d.ini");
 	test.create_mesh();
 	test.calculate();
 	return 0;
