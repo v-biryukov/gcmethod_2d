@@ -38,13 +38,17 @@ public:
 	int get_number_of_points();
 	vector2d get_point(int n);
 	int get_number_of_triangles();
-	int get_triangle_point(int n, int k);
+	int get_triangle_point_num(int n, int k);
+	vector2d get_triangle_point(int n, int k);
 	bool is_inside(vector2d p);
+	bool is_inside(vector2d p, int n);
 
 	std::vector<std::vector<int> > neighbors;
+	std::vector<std::vector<int> > triangles;
 private:
 	void read_from_file(std::string path);
-	void find_neighbors(triangulateio & mesh);
+	void find_neighbors();
+	void find_triangles();
 };
 
 mesh_2d::mesh_2d(std::string path)
@@ -124,16 +128,29 @@ void mesh_2d::create_mesh()
     s[str.size()] = '\0';
     
     triangulate(s, &in, &mesh, (struct triangulateio *) NULL);
-    find_neighbors(mesh);
+    find_neighbors();
+    find_triangles();
+    std::cout << "Mesh has been generated successfully." << std::endl;
 }
 
-void mesh_2d::find_neighbors(triangulateio & mesh)
+void mesh_2d::find_neighbors()
 {
 	neighbors.resize(mesh.numberofpoints);
 	for ( int i = 0; i < mesh.numberofedges; i++)
 	{
 		neighbors.at(mesh.edgelist[2*i + 0]).push_back(mesh.edgelist[2*i + 1]);
 		neighbors.at(mesh.edgelist[2*i + 1]).push_back(mesh.edgelist[2*i + 0]);
+	}
+}
+
+void mesh_2d::find_triangles()
+{
+	triangles.resize(mesh.numberofpoints);
+	for ( int i = 0; i < mesh.numberoftriangles; i++)
+	{
+		triangles.at(mesh.trianglelist[3*i + 0]).push_back(i);
+		triangles.at(mesh.trianglelist[3*i + 1]).push_back(i);
+		triangles.at(mesh.trianglelist[3*i + 2]).push_back(i);
 	}
 }
 
@@ -161,9 +178,14 @@ int mesh_2d::get_number_of_triangles()
 	return mesh.numberoftriangles;
 }
 
-int mesh_2d::get_triangle_point(int n, int k)
+int mesh_2d::get_triangle_point_num(int n, int k)
 {
 	return mesh.trianglelist[3*n + k];
+}
+
+vector2d mesh_2d::get_triangle_point(int n, int k)
+{
+	return get_point(get_triangle_point_num(n,k));
 }
 
 bool mesh_2d::is_inside(vector2d p)
@@ -171,6 +193,18 @@ bool mesh_2d::is_inside(vector2d p)
 	if (p.x < -size_x/2 || p.x > size_x/2 || p.y < -size_y/2 || p.y > size_y/2)
 		return false;
 	else return true;
+}
+
+bool mesh_2d::is_inside(vector2d p, int n)
+{
+	bool b1, b2, b3;
+	vector2d v1 = get_triangle_point(n, 0);
+	vector2d v2 = get_triangle_point(n, 1);
+	vector2d v3 = get_triangle_point(n, 2);
+	b1 = Vec(p-v2, v1-v2);
+	b2 = Vec(p-v3, v2-v3);
+	b3 = Vec(p-v1, v3-v1);
+	return ((b1 == b2) && (b2 == b3));
 }
 
 
@@ -182,9 +216,11 @@ class gcmethod_2d
 	double lambda_x, lambda_y;
 	double tau;
 	int number_of_steps;
+	int N;
 	mesh_2d & mesh;
 	std::vector<double> u1;
 	std::vector<double> u2;
+	std::vector<std::vector<double> > values;
 
 public:
 	gcmethod_2d(std::string path, mesh_2d & mesh_t);
@@ -192,9 +228,12 @@ public:
 	void save_to_vtk(std::string name);
 private:
 	void init();
+	vector2d get_value_point(int n, int k);
 	void read_from_file(std::string path);
 	double initial_conditions(double x, double y) {if (x*x + y*y < 2) return 5; else return 0;};
+	double initial_conditions(vector2d v) {return initial_conditions(v.x, v.y);};
 	void step_any(vector2d step, std::vector<double> & u0, std::vector<double> & u);
+	double approximate(vector2d p, int tn);
 	void approximate_linear(vector2d p, int p1, int p2, int p3, std::vector<double> & u0, std::vector<double> & u);
 	void step();
 };
@@ -213,7 +252,7 @@ void gcmethod_2d::save_to_vtk(std::string name)
 		vtk_file << mesh.get_point(i).x << " " << mesh.get_point(i).y << " "  << u1.at(i) << "\n";
 	vtk_file << "\nPOLYGONS " << mesh.get_number_of_triangles() << " " << mesh.get_number_of_triangles()*4 << "\n";
 	for (int i = 0; i < mesh.get_number_of_triangles(); i++)
-		vtk_file << 3 << " " << mesh.get_triangle_point(i,0) << " " << mesh.get_triangle_point(i,1) << " " << mesh.get_triangle_point(i,2) << "\n";
+		vtk_file << 3 << " " << mesh.get_triangle_point_num(i,0) << " " << mesh.get_triangle_point_num(i,1) << " " << mesh.get_triangle_point_num(i,2) << "\n";
 	vtk_file << "\nPOINT_DATA " << mesh.get_number_of_points() << "\n" << "VECTORS vectors float\n";
 	for ( int i = 0; i < mesh.get_number_of_points(); i++ )
 		vtk_file << u1.at(i) << " 0.0 0.0\n";
@@ -221,45 +260,59 @@ void gcmethod_2d::save_to_vtk(std::string name)
 
 void gcmethod_2d::step_any(vector2d step, std::vector<double> & u0, std::vector<double> & u)
 {
-	vector2d p0, p, q, r;
+	vector2d p;
 	for (int i = 0; i < mesh.get_number_of_points(); i++)
 	{
-		p0 = mesh.get_point(i);
-		p = step;
-		if (!mesh.is_inside(p+p0))
+		p = mesh.get_point(i) + step;
+		if (!mesh.is_inside(p))
 			u.at(i) = 0;
 		else
 		{
-			double max_dot = -mesh.get_size_x() - mesh.get_size_y();
-			int k = 0;
-			int n = 0;
-			for ( int j = 0; j < mesh.neighbors.at(i).size(); j++ )
+			for (auto j : mesh.triangles.at(i))
 			{
-				q = mesh.get_point(mesh.neighbors.at(i).at(j)) - mesh.get_point(i);
-				if (max_dot <= p*q/Magnitude(q)) 
+				if (mesh.is_inside(p, j))
 				{
-					max_dot = p*q/Magnitude(q);
-					k = j;
+					u.at(i) = approximate(p, j);
+					break;
 				}
 			}
-
-			max_dot = -mesh.get_size_x() - mesh.get_size_y();
-			for ( int j = 0; j < mesh.neighbors.at(i).size(); j++ )
-			{
-				q = mesh.get_point(mesh.neighbors.at(i).at(j)) - mesh.get_point(i);
-				r = mesh.get_point(mesh.neighbors.at(i).at(k)) - mesh.get_point(i);
-				if (j != k && Vec(p, q) * Vec(p, r) <= 0)
-				{
-					if (max_dot <= p*q/Magnitude(q)) 
-					{
-						max_dot = p*q/Magnitude(q);
-						n = j;
-					}
-				}
-			}
-			approximate_linear(p0 + p, i, mesh.neighbors.at(i).at(k), mesh.neighbors.at(i).at(n), u0, u);
+			//approximate_linear(p, i, mesh.neighbors.at(i).at(k), mesh.neighbors.at(i).at(n), u0, u);
 		}
 	}
+}
+
+double gcmethod_2d::approximate(vector2d r, int tn)
+{
+	vector2d ra = mesh.get_triangle_point(tn, 0);
+	vector2d rb = mesh.get_triangle_point(tn, 1);
+	vector2d rc = mesh.get_triangle_point(tn, 2);
+	double sa = Vec(rc - rb, r - rb);
+	double sb = Vec(ra - rc, r - rc);
+	double sc = Vec(rc - ra, r - ra);
+	double s = sa + sb + sc;
+	sa /= s; sb /= s; sc /= s;
+	double v = 0;
+	for (int pnum = 0; pnum < values.at(tn).size(); pnum++)
+	{
+		int inum = 0, jnum = pnum, knum = 0;
+		while ( jnum > inum )
+		{
+			inum++;
+			jnum -= inum;
+		}
+		inum = N - inum;
+		jnum = N - jnum;
+		knum = N - inum - jnum;
+		double w = 1;
+		for (int i = 0; i < inum; i++)
+			w *= (sa - i*1.0/N)/(1 - i*1.0/N);
+		for (int j = 0; j < jnum; j++)
+			w *= (sb - j*1.0/N)/(1 - j*1.0/N);
+		for (int k = 0; k < knum; k++)
+			w *= (sc - k*1.0/N)/(1 - k*1.0/N);
+		v += w * values.at(tn).at(pnum);
+	}
+	return v;
 }
 
 void gcmethod_2d::approximate_linear(vector2d p, int p1, int p2, int p3, std::vector<double> & u0, std::vector<double> & u)
@@ -323,6 +376,23 @@ void gcmethod_2d::init()
 	u2.resize(mesh.get_number_of_points());
 	for ( int i = 0; i < mesh.get_number_of_points(); i++ )
 		u1.at(i) = initial_conditions(mesh.get_point(i).x, mesh.get_point(i).y);
+	values.resize(mesh.get_number_of_triangles(), std::vector<double>((N+1)*(N+2)/2));
+	for ( int i = 0; i < mesh.get_number_of_triangles(); i++ )
+		for ( int j = 0; j < (N+1)*(N+2)/2; j++ )
+			values.at(i).at(j) = initial_conditions(get_value_point(i, j));
+}
+
+vector2d gcmethod_2d::get_value_point(int n, int k)
+{
+	int i = 0;
+	while ( k > i )
+	{
+		i++;
+		k -= i;
+	}
+	vector2d ivec = (mesh.get_triangle_point(i, 2) - mesh.get_triangle_point(i, 0))/N;
+	vector2d kvec = (mesh.get_triangle_point(i, 2) - mesh.get_triangle_point(i, 1))/N;
+	return mesh.get_triangle_point(i, 0) + i*ivec + k*kvec;
 }
 
 void gcmethod_2d::read_from_file(std::string path)
