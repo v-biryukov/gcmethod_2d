@@ -57,6 +57,8 @@ private:
 	double approximate_quadratic(vector2d p, int tn);
     double approximate_cubic(vector2d p, int tn);
     double approximate_quartic(vector2d r, int tn);
+    double approximate_quadratic_special(vector2d r, int tn);
+    void aproximate_quadratic_special_small(std::vector<double> & zs,  int tn, vector2d p1, vector2d p2, vector2d p3, double z1, double z2, double z3);
     double approximate_any(vector2d p, int tn);
     bool min_max_check(double z, int tn);
 	void step();
@@ -145,7 +147,7 @@ double gcmethod_2d::approximate(vector2d p, int tn)
 	switch (N)
 	{
 		case 1: result = approximate_linear(p, tn); break;
-		case 2: result = approximate_quadratic(p, tn); break;
+		case 2: result = approximate_quadratic_special(p, tn); break;
 		case 3: result = approximate_cubic(p, tn); break;
 		case 4: result = approximate_quartic(p, tn); break;
 		default: result = approximate_any(p, tn); break;
@@ -242,6 +244,83 @@ double gcmethod_2d::approximate_quartic(vector2d r, int tn)
     v += 16*sb*(4*sb-1)*(2*sb-1)*sc/3 * additional_z0.at(tn).at(9);
     v += 4*sb*(4*sb-1)*sc*(4*sc-1) * additional_z0.at(tn).at(10);
     v += 16*sc*(4*sc-1)*(2*sc-1)*sb/3 * additional_z0.at(tn).at(11);
+	return v;
+}
+
+void gcmethod_2d::aproximate_quadratic_special_small(std::vector<double> & zs, int tn, vector2d p1, vector2d p2, vector2d p3, double z1, double z2, double z3)
+{
+    zs.push_back(z1);
+    zs.push_back(z2);
+    zs.push_back(z3);
+    zs.push_back(approximate_quadratic((p1+p2)/2, tn));
+    zs.push_back(approximate_quadratic((p1+p3)/2, tn));
+    zs.push_back(approximate_quadratic((p3+p2)/2, tn));
+
+    if (  (zs.at(3) > z1 && zs.at(3) > z2)
+        ||(zs.at(3) < z1 && zs.at(3) < z2)  )
+        zs.at(3) = (z1+z2)/2;
+    if (  (zs.at(4) > z1 && zs.at(4) > z3)
+        ||(zs.at(4) < z1 && zs.at(4) < z3)  )
+        zs.at(4) = (z3+z1)/2;
+    if (  (zs.at(5) > z3 && zs.at(5) > z2)
+        ||(zs.at(5) < z3 && zs.at(5) < z2)  )
+        zs.at(5) = (z3+z2)/2;
+}
+
+double gcmethod_2d::approximate_quadratic_special(vector2d r, int tn)
+{
+    vector2d ra = mesh.get_triangle_point(tn, 0);
+	vector2d rb = mesh.get_triangle_point(tn, 1);
+	vector2d rc = mesh.get_triangle_point(tn, 2);
+	double sa = Vec(rc - rb, r - rb)/2;
+	double sb = Vec(ra - rc, r - rc)/2;
+	double sc = Vec(rb - ra, r - ra)/2;
+	double s = sa + sb + sc;
+	sa /= s; sb /= s; sc /= s;
+	vector2d p1, p2, p3;
+	std::vector<double> z;
+    if (sa >= 0.5)
+    {
+        p1 = ra;
+        p2 = ra + (rb-ra)/2;
+        p3 = ra + (rc-ra)/2;
+        aproximate_quadratic_special_small(z, tn, p1, p2, p3, main_z0.at(mesh.get_triangle_point_num(tn, 0)), additional_z0.at(tn).at(0), additional_z0.at(tn).at(1));
+    }
+    else if (sb >= 0.5)
+    {
+        p1 = rb;
+        p2 = rb + (rc-rb)/2;
+        p3 = rb + (ra-rb)/2;
+        aproximate_quadratic_special_small(z, tn, p1, p2, p3, main_z0.at(mesh.get_triangle_point_num(tn, 1)), additional_z0.at(tn).at(2), additional_z0.at(tn).at(0));
+    }
+    else if (sc >= 0.5)
+    {
+        p1 = rc;
+        p2 = rc + (ra-rc)/2;
+        p3 = rc + (rb-rc)/2;
+        aproximate_quadratic_special_small(z, tn, p1, p2, p3, main_z0.at(mesh.get_triangle_point_num(tn, 2)), additional_z0.at(tn).at(1), additional_z0.at(tn).at(2));
+    }
+    else
+    {
+        p1 = (ra+rb)/2;
+        p2 = (rb+rc)/2;
+        p3 = (rc+ra)/2;
+        aproximate_quadratic_special_small(z, tn, p1, p2, p3, additional_z0.at(tn).at(0), additional_z0.at(tn).at(2), additional_z0.at(tn).at(1));
+    }
+	double spa = Vec(p3 - p2, r - p2)/2;
+	double spb = Vec(p1 - p3, r - p3)/2;
+	double spc = Vec(p2 - p1, r - p1)/2;
+	double sp = spa + spb + spc;
+	spa /= sp; spb /= sp; spc /= sp;
+    //if (r.x*r.x + r.y*r.y < 1)
+    //    std::cout << z.at(0) << " " << z.at(1) << " " << z.at(2) << " " << z.at(3) << " " << z.at(4) << " " << z.at(5) << "\n";
+	double v = 0;
+	v += spa*(2*spa-1) * z.at(0);
+	v += spb*(2*spb-1) * z.at(1);
+	v += spc*(2*spc-1) * z.at(2);
+	v += 4*spa*spb * z.at(3);
+	v += 4*spc*spa * z.at(4);
+	v += 4*spb*spc * z.at(5);
 	return v;
 }
 
