@@ -1,3 +1,4 @@
+#pragma once
 
 #ifdef SINGLE
 #define REAL float
@@ -19,193 +20,9 @@ extern "C"
 #include <boost/property_tree/ptree.hpp>
 #include <boost/property_tree/ini_parser.hpp>
 #include "vector2.h"
-
-class mesh_2d
-{
-	std::string path;
-	double size_x, size_y;
-	double h, max_ang;
-
-	triangulateio mesh;
+#include "mesh_2d.h"
 
 
-public:
-	mesh_2d(std::string path);
-	void create_mesh();
-
-	double get_size_x();
-	double get_size_y();
-	int get_number_of_points();
-	vector2d get_point(int n);
-	int get_number_of_triangles();
-	int get_triangle_point_num(int n, int k);
-	vector2d get_triangle_point(int n, int k);
-	bool is_inside(vector2d p);
-	bool is_inside(vector2d p, int n);
-
-	std::vector<std::vector<int> > neighbors;
-	std::vector<std::vector<int> > triangles;
-private:
-	void read_from_file(std::string path);
-	void find_neighbors();
-	void find_triangles();
-};
-
-mesh_2d::mesh_2d(std::string path)
-{
-	read_from_file(path);
-}
-
-void mesh_2d::read_from_file(std::string path)
-{
-    using std::string;
-    using std::cout;
-    using std::cin;
-    using std::endl;
-    boost::property_tree::ptree pt;
-    try
-    {
-        boost::property_tree::read_ini(path, pt);
-    }
-    catch (boost::property_tree::ini_parser_error& error)
-    {
-        cout
-            << error.message() << ": "
-            << error.filename() << ", line "
-            << error.line() << endl;
-        cout << "Error! Press any key to close." << endl;
-        std::cin.get();
-        std::exit(1);
-    }
-    size_x = pt.get<REAL>("Grid.size_x");
-    size_y = pt.get<REAL>("Grid.size_y");
-    h = pt.get<REAL>("Method.h");
-    max_ang = pt.get<REAL>("Method.max_ang");
-}
-
-void mesh_2d::create_mesh()
-{
-	// Setting triangulateio in and out:
-	triangulateio in;
-    in.numberofpoints = 4;
-    in.numberofpointattributes = 0;
-    in.pointlist = (REAL *) malloc(in.numberofpoints * 2 * sizeof(REAL));
-    in.pointmarkerlist = (int *) NULL;
-    in.pointattributelist = (REAL *) NULL;
-
-    in.pointlist[0] = -size_x/2; in.pointlist[1] = -size_y/2;
-    in.pointlist[2] =  size_x/2; in.pointlist[3] = -size_y/2;
-    in.pointlist[4] =  size_x/2; in.pointlist[5] =  size_y/2;
-    in.pointlist[6] = -size_x/2; in.pointlist[7] =  size_y/2;
-
-
-    in.numberofsegments = in.numberofpoints;
-    in.segmentlist = (int *) malloc(in.numberofsegments * 2 * sizeof(int));
-	in.segmentlist[0] = 0; in.segmentlist[1] = 1;
-	in.segmentlist[2] = 1; in.segmentlist[3] = 2;
-	in.segmentlist[4] = 2; in.segmentlist[5] = 3;
-	in.segmentlist[6] = 3; in.segmentlist[7] = 0;
-    in.numberofholes = 0;
-    in.numberofregions = 0;
-
-    mesh.pointlist = (REAL *) NULL;
-    mesh.pointattributelist = (REAL *) NULL;
-    mesh.pointmarkerlist = (int *) NULL;
-    mesh.trianglelist = (int *) NULL;
-    mesh.triangleattributelist = (REAL *) NULL;
-    mesh.neighborlist = (int *) NULL;
-    mesh.segmentlist = (int *) NULL;
-    mesh.segmentmarkerlist = (int *) NULL;
-    mesh.edgelist = (int *) NULL;
-    mesh.edgemarkerlist = (int *) NULL;
-
-    std::stringstream ss;
-    ss << "pzeqa" << h * h / 2;
-    std::string str;
-    ss >> str;
-    char * s = new char[str.size() + 1];
-    std::copy(str.begin(), str.end(), s);
-    s[str.size()] = '\0';
-
-    triangulate(s, &in, &mesh, (struct triangulateio *) NULL);
-    find_neighbors();
-    find_triangles();
-    std::cout << "Mesh has been generated successfully." << std::endl;
-}
-
-void mesh_2d::find_neighbors()
-{
-	neighbors.resize(mesh.numberofpoints);
-	for ( int i = 0; i < mesh.numberofedges; i++)
-	{
-		neighbors.at(mesh.edgelist[2*i + 0]).push_back(mesh.edgelist[2*i + 1]);
-		neighbors.at(mesh.edgelist[2*i + 1]).push_back(mesh.edgelist[2*i + 0]);
-	}
-}
-
-void mesh_2d::find_triangles()
-{
-	triangles.resize(mesh.numberofpoints);
-	for ( int i = 0; i < mesh.numberoftriangles; i++)
-	{
-		triangles.at(mesh.trianglelist[3*i + 0]).push_back(i);
-		triangles.at(mesh.trianglelist[3*i + 1]).push_back(i);
-		triangles.at(mesh.trianglelist[3*i + 2]).push_back(i);
-	}
-}
-
-double mesh_2d::get_size_x()
-{
-	return size_x;
-}
-double mesh_2d::get_size_y()
-{
-	return size_y;
-}
-
-int mesh_2d::get_number_of_points()
-{
-	return mesh.numberofpoints;
-}
-
-vector2d mesh_2d::get_point(int n)
-{
-	return vector2d(mesh.pointlist[2*n], mesh.pointlist[2*n+1]);
-}
-
-int mesh_2d::get_number_of_triangles()
-{
-	return mesh.numberoftriangles;
-}
-
-int mesh_2d::get_triangle_point_num(int n, int k)
-{
-	return mesh.trianglelist[3*n + k];
-}
-
-vector2d mesh_2d::get_triangle_point(int n, int k)
-{
-	return get_point(get_triangle_point_num(n,k));
-}
-
-bool mesh_2d::is_inside(vector2d p)
-{
-	if (p.x < -size_x/2 || p.x > size_x/2 || p.y < -size_y/2 || p.y > size_y/2)
-		return false;
-	else return true;
-}
-
-bool mesh_2d::is_inside(vector2d p, int n)
-{
-	bool b1, b2, b3;
-	vector2d v1 = get_triangle_point(n, 0);
-	vector2d v2 = get_triangle_point(n, 1);
-	vector2d v3 = get_triangle_point(n, 2);
-	b1 = Vec(p-v2, v1-v2) < 0.0;
-	b2 = Vec(p-v3, v2-v3) < 0.0;
-	b3 = Vec(p-v1, v3-v1) < 0.0;
-	return ((b1 == b2) && (b2 == b3));
-}
 
 
 
@@ -217,6 +34,7 @@ class gcmethod_2d
 	double tau;
 	int number_of_steps;
 	int N;
+	bool is_monotonic;
 	mesh_2d & mesh;
 	std::vector<double> main_z0;
 	std::vector<double> main_z1;
@@ -238,6 +56,9 @@ private:
 	double approximate_linear(vector2d p, int tn);
 	double approximate_quadratic(vector2d p, int tn);
     double approximate_cubic(vector2d p, int tn);
+    double approximate_quartic(vector2d r, int tn);
+    double approximate_any(vector2d p, int tn);
+    bool min_max_check(double z, int tn);
 	void step();
 };
 
@@ -280,7 +101,7 @@ void gcmethod_2d::step_any(vector2d step)
 			{
 				if (mesh.is_inside(p, n))
 				{
-					main_z1.at(i) = approximate_linear(p, n);
+					main_z1.at(i) = approximate(p, n);
 					break;
 				}
 			}
@@ -295,42 +116,137 @@ void gcmethod_2d::step_any(vector2d step)
 				additional_z1.at(i).at(j) = 0;
 			else
 			{
-                int aaa = 0;
 				for ( int m = 0; m < 3; m++ )
 					for ( int n : mesh.triangles.at(mesh.get_triangle_point_num(i, m)) )
-					{
 						if (mesh.is_inside(p, n))
 						{
-							additional_z1.at(i).at(j) = approximate_linear(p, n);
-							//std::cout << "1:" << additional_z1.at(i).at(j) << " | 0: " << additional_z0.at(i).at(j) << std::endl;
-							aaa++;
+							additional_z1.at(i).at(j) = approximate(p, n);
 							break;
 						}
-					}
-                if (aaa == 0)
-                {
-                    for ( int m = 0; m < 3; m++ )
-                    {
-                        for ( int c : mesh.triangles.at(mesh.get_triangle_point_num(i, m)) )
-                        {
-                            std::cout << mesh.get_triangle_point(c, 0).x << ' ' << mesh.get_triangle_point(c, 0).y << "\n";
-                            std::cout << mesh.get_triangle_point(c, 1).x << ' ' << mesh.get_triangle_point(c, 1).y << "\n";
-                            std::cout << mesh.get_triangle_point(c, 2).x << ' ' << mesh.get_triangle_point(c, 2).y << "\n";
-                        }
-                        std::cout << "\n";
-                    }
-                    std::cout << p.x << " "  << p.y << "\n";
-                    std::cout << get_additional_point(i, j).x << " "  << get_additional_point(i, j).y << "\n";
-                    additional_z1.at(i).at(j) = additional_z0.at(i).at(j);
-                    //std::exit(1);
-                }
-                //std::cout << "AAaaa " << aaa <<"\n";
 			}
 		}
 	}
 }
 
-double gcmethod_2d::approximate(vector2d r, int tn)
+bool gcmethod_2d::min_max_check(double z, int tn)
+{
+    return   (  z > main_z0.at(mesh.get_triangle_point_num(tn,0))
+             && z > main_z0.at(mesh.get_triangle_point_num(tn,1))
+             && z > main_z0.at(mesh.get_triangle_point_num(tn,2)) )
+           ||(  z < main_z0.at(mesh.get_triangle_point_num(tn,0))
+             && z < main_z0.at(mesh.get_triangle_point_num(tn,1))
+             && z < main_z0.at(mesh.get_triangle_point_num(tn,2)) );
+
+}
+
+double gcmethod_2d::approximate(vector2d p, int tn)
+{
+    double result;
+	switch (N)
+	{
+		case 1: result = approximate_linear(p, tn); break;
+		case 2: result = approximate_quadratic(p, tn); break;
+		case 3: result = approximate_cubic(p, tn); break;
+		case 4: result = approximate_quartic(p, tn); break;
+		default: result = approximate_any(p, tn); break;
+	}
+	if (is_monotonic && min_max_check(result, tn))
+        return approximate_linear(p, tn);
+    else
+        return result;
+}
+
+
+double gcmethod_2d::approximate_linear(vector2d p, int tn)
+{
+	double x1 = mesh.get_triangle_point(tn, 0).x; double y1 = mesh.get_triangle_point(tn, 0).y; double z1 = main_z0.at(mesh.get_triangle_point_num(tn, 0));
+	double x2 = mesh.get_triangle_point(tn, 1).x; double y2 = mesh.get_triangle_point(tn, 1).y; double z2 = main_z0.at(mesh.get_triangle_point_num(tn, 1));
+	double x3 = mesh.get_triangle_point(tn, 2).x; double y3 = mesh.get_triangle_point(tn, 2).y; double z3 = main_z0.at(mesh.get_triangle_point_num(tn, 2));
+
+	double vx = (y3-y1)*(z3-z2) - (z3-z1)*(y3-y2);
+	double vy = (z3-z1)*(x3-x2) - (x3-x1)*(z3-z2);
+	double vz = (x3-x1)*(y3-y2) - (y3-y1)*(x3-x2);
+
+	return 1.0 * (x1*vx + y1*vy + z1*vz - vx*p.x - vy*p.y) / vz ;
+}
+
+double gcmethod_2d::approximate_quadratic(vector2d r, int tn)
+{
+    vector2d ra = mesh.get_triangle_point(tn, 0);
+	vector2d rb = mesh.get_triangle_point(tn, 1);
+	vector2d rc = mesh.get_triangle_point(tn, 2);
+	double sa = Vec(rc - rb, r - rb)/2;
+	double sb = Vec(ra - rc, r - rc)/2;
+	double sc = Vec(rb - ra, r - ra)/2;
+	double s = sa + sb + sc;
+	sa /= s; sb /= s; sc /= s;
+	double v = 0;
+	v += sa*(2*sa-1) * main_z0.at(mesh.get_triangle_point_num(tn, 0));
+	v += sb*(2*sb-1) * main_z0.at(mesh.get_triangle_point_num(tn, 1));
+	v += sc*(2*sc-1) * main_z0.at(mesh.get_triangle_point_num(tn, 2));
+	v += 4*sa*sb * additional_z0.at(tn).at(0);
+	v += 4*sc*sa * additional_z0.at(tn).at(1);
+	v += 4*sb*sc * additional_z0.at(tn).at(2);
+	return v;
+}
+
+double gcmethod_2d::approximate_cubic(vector2d r, int tn)
+{
+    vector2d ra = mesh.get_triangle_point(tn, 0);
+	vector2d rb = mesh.get_triangle_point(tn, 1);
+	vector2d rc = mesh.get_triangle_point(tn, 2);
+	double sa = Vec(rc - rb, r - rb)/2;
+	double sb = Vec(ra - rc, r - rc)/2;
+	double sc = Vec(rb - ra, r - ra)/2;
+	double s = sa + sb + sc;
+	sa /= s; sb /= s; sc /= s;
+	double v = 0;
+	v += sa*(3*sa-1)*(3*sa-2)/2 * main_z0.at(mesh.get_triangle_point_num(tn, 0));
+	v += sb*(3*sb-1)*(3*sb-2)/2 * main_z0.at(mesh.get_triangle_point_num(tn, 1));
+	v += sc*(3*sc-1)*(3*sc-2)/2 * main_z0.at(mesh.get_triangle_point_num(tn, 2));
+	v += 9*sa*(3*sa-1)*sb/2 * additional_z0.at(tn).at(0);
+	v += 9*sa*(3*sa-1)*sc/2 * additional_z0.at(tn).at(1);
+	v += 9*sb*(3*sb-1)*sa/2 * additional_z0.at(tn).at(2);
+	v += 27*sa*sb*sc * additional_z0.at(tn).at(3);
+	v += 9*sc*(3*sc-1)*sa/2 * additional_z0.at(tn).at(4);
+    v += 9*sb*(3*sb-1)*sc/2 * additional_z0.at(tn).at(5);
+	v += 9*sc*(3*sc-1)*sb/2 * additional_z0.at(tn).at(6);
+	return v;
+}
+
+double gcmethod_2d::approximate_quartic(vector2d r, int tn)
+{
+    vector2d ra = mesh.get_triangle_point(tn, 0);
+	vector2d rb = mesh.get_triangle_point(tn, 1);
+	vector2d rc = mesh.get_triangle_point(tn, 2);
+	double sa = Vec(rc - rb, r - rb)/2;
+	double sb = Vec(ra - rc, r - rc)/2;
+	double sc = Vec(rb - ra, r - ra)/2;
+	double s = sa + sb + sc;
+	sa /= s; sb /= s; sc /= s;
+
+	double v = 0;
+	v += sa*(4*sa-1)*(2*sa-1)*(4*sa-3)/3 * main_z0.at(mesh.get_triangle_point_num(tn, 0));
+	v += sb*(4*sb-1)*(2*sb-1)*(4*sb-3)/3 * main_z0.at(mesh.get_triangle_point_num(tn, 1));
+	v += sc*(4*sc-1)*(2*sc-1)*(4*sc-3)/3 * main_z0.at(mesh.get_triangle_point_num(tn, 2));
+	v += 16*sa*(4*sa-1)*(2*sa-1)*sb/3 * additional_z0.at(tn).at(0);
+	v += 16*sa*(4*sa-1)*(2*sa-1)*sc/3 * additional_z0.at(tn).at(1);
+
+	v += 4*sa*(4*sa-1)*sb*(4*sb-1) * additional_z0.at(tn).at(2);
+	v += 32*sa*(4*sa-1)*sb*sc * additional_z0.at(tn).at(3);
+	v += 4*sa*(4*sa-1)*sc*(4*sc-1) * additional_z0.at(tn).at(4);
+	v += 16*sb*(4*sb-1)*(2*sb-1)*sa/3 * additional_z0.at(tn).at(5);
+    v += 32*sb*(4*sb-1)*sc*sa * additional_z0.at(tn).at(6);
+    v += 32*sc*(4*sc-1)*sa*sb * additional_z0.at(tn).at(7);
+    v += 16*sc*(4*sc-1)*(2*sc-1)*sa/3 * additional_z0.at(tn).at(8);
+    v += 16*sb*(4*sb-1)*(2*sb-1)*sc/3 * additional_z0.at(tn).at(9);
+    v += 4*sb*(4*sb-1)*sc*(4*sc-1) * additional_z0.at(tn).at(10);
+    v += 16*sc*(4*sc-1)*(2*sc-1)*sb/3 * additional_z0.at(tn).at(11);
+	return v;
+}
+
+double gcmethod_2d::approximate_any(vector2d r, int tn)
+// TODO
 {
 	vector2d ra = mesh.get_triangle_point(tn, 0);
 	vector2d rb = mesh.get_triangle_point(tn, 1);
@@ -340,8 +256,6 @@ double gcmethod_2d::approximate(vector2d r, int tn)
 	double sc = Vec(rb - ra, r - ra)/2;
 	double s = sa + sb + sc;
 	sa /= s; sb /= s; sc /= s;
-	if (r.x > -1 && r.x < 1 && r.y > -1 && r.y < 1)
-        std::cout;
 	double v = 0;
 	for (int pnum = 0; pnum < (N+1)*(N+2)/2; pnum++)
 	{
@@ -384,67 +298,6 @@ double gcmethod_2d::approximate(vector2d r, int tn)
 			v += w * additional_z0.at(tn).at(k);
 		}
 	}
-	return v;
-}
-
-double gcmethod_2d::approximate_linear(vector2d p, int tn)
-{
-	double x1 = mesh.get_triangle_point(tn, 0).x; double y1 = mesh.get_triangle_point(tn, 0).y; double z1 = main_z0.at(mesh.get_triangle_point_num(tn, 0));
-	double x2 = mesh.get_triangle_point(tn, 1).x; double y2 = mesh.get_triangle_point(tn, 1).y; double z2 = main_z0.at(mesh.get_triangle_point_num(tn, 1));
-	double x3 = mesh.get_triangle_point(tn, 2).x; double y3 = mesh.get_triangle_point(tn, 2).y; double z3 = main_z0.at(mesh.get_triangle_point_num(tn, 2));
-
-	double vx = (y3-y1)*(z3-z2) - (z3-z1)*(y3-y2);
-	double vy = (z3-z1)*(x3-x2) - (x3-x1)*(z3-z2);
-	double vz = (x3-x1)*(y3-y2) - (y3-y1)*(x3-x2);
-
-	return 1.0 * (x1*vx + y1*vy + z1*vz - vx*p.x - vy*p.y) / vz ;
-}
-
-double gcmethod_2d::approximate_quadratic(vector2d r, int tn)
-{
-    vector2d ra = mesh.get_triangle_point(tn, 0);
-	vector2d rb = mesh.get_triangle_point(tn, 1);
-	vector2d rc = mesh.get_triangle_point(tn, 2);
-	double sa = Vec(rc - rb, r - rb)/2;
-	double sb = Vec(ra - rc, r - rc)/2;
-	double sc = Vec(rb - ra, r - ra)/2;
-	double s = sa + sb + sc;
-	sa /= s; sb /= s; sc /= s;
-    //if (r.x*r.x + r.y*r.y > 4.5 && r.x*r.x + r.y*r.y < 5.5 )
-       // std::cout << 5;
-	double v = 0;
-	v += sa*(2*sa-1) * main_z0.at(mesh.get_triangle_point_num(tn, 0));
-	v += sb*(2*sb-1) * main_z0.at(mesh.get_triangle_point_num(tn, 1));
-	v += sc*(2*sc-1) * main_z0.at(mesh.get_triangle_point_num(tn, 2));
-	v += 4*sa*sb * additional_z0.at(tn).at(0);
-	v += 4*sc*sa * additional_z0.at(tn).at(1);
-	v += 4*sb*sc * additional_z0.at(tn).at(2);
-	return v;
-}
-
-double gcmethod_2d::approximate_cubic(vector2d r, int tn)
-{
-    vector2d ra = mesh.get_triangle_point(tn, 0);
-	vector2d rb = mesh.get_triangle_point(tn, 1);
-	vector2d rc = mesh.get_triangle_point(tn, 2);
-	double sa = Vec(rc - rb, r - rb)/2;
-	double sb = Vec(ra - rc, r - rc)/2;
-	double sc = Vec(rb - ra, r - ra)/2;
-	double s = sa + sb + sc;
-	sa /= s; sb /= s; sc /= s;
-    //if (r.x*r.x + r.y*r.y > 4.5 && r.x*r.x + r.y*r.y < 5.5 )
-       // std::cout << 5;
-	double v = 0;
-	v += sa*(3*sa-1)*(3*sa-2)/2 * main_z0.at(mesh.get_triangle_point_num(tn, 0));
-	v += sb*(3*sb-1)*(3*sb-2)/2 * main_z0.at(mesh.get_triangle_point_num(tn, 1));
-	v += sc*(3*sc-1)*(3*sc-2)/2 * main_z0.at(mesh.get_triangle_point_num(tn, 2));
-	v += 9*sa*(3*sa-1)*sb/2 * additional_z0.at(tn).at(0);
-	v += 9*sa*(3*sa-1)*sc/2 * additional_z0.at(tn).at(1);
-	v += 9*sb*(3*sb-1)*sa/2 * additional_z0.at(tn).at(2);
-	v += 27*sa*sb*sc * additional_z0.at(tn).at(3);
-	v += 9*sc*(3*sc-1)*sa/2 * additional_z0.at(tn).at(4);
-    v += 9*sb*(3*sb-1)*sc/2 * additional_z0.at(tn).at(5);
-	v += 9*sc*(3*sc-1)*sb/2 * additional_z0.at(tn).at(6);
 	return v;
 }
 
@@ -550,6 +403,8 @@ void gcmethod_2d::read_from_file(std::string path)
     tau = pt.get<REAL>("Method.tau");
     number_of_steps = pt.get<int>("Method.number_of_steps");
     N = pt.get<int>("Method.N");
+    std::string is_monotonic_str = pt.get<std::string>("Method.is_monotonic");
+    is_monotonic = (is_monotonic_str == "true" || is_monotonic_str == "TRUE" || is_monotonic_str == "True");
 }
 
 
