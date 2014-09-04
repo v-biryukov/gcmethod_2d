@@ -61,6 +61,8 @@ private:
     void aproximate_quadratic_special_small(std::vector<double> & zs,  int tn, vector2d p1, vector2d p2, vector2d p3, double z1, double z2, double z3);
     double approximate_any(vector2d p, int tn);
     bool min_max_check(double z, int tn);
+    double exact_solution(vector2d p, double t);
+    double L_inf();
 	void step();
 };
 
@@ -95,9 +97,7 @@ void gcmethod_2d::step_any(vector2d step)
 	for ( int i = 0; i < mesh.get_number_of_points(); i++ )
 	{
 		p = mesh.get_point(i) + step;
-		if (!mesh.is_inside(p))
-			main_z1.at(i) = 0;
-		else
+		if (mesh.is_inside(p))
 		{
 			for (auto n : mesh.triangles.at(i))
 			{
@@ -108,15 +108,25 @@ void gcmethod_2d::step_any(vector2d step)
 				}
 			}
 		}
+		else
+		{
+            mesh.make_inside_vector(p);
+            for ( int n = 0; n < mesh.get_number_of_triangles(); n++ )
+            {
+                if (mesh.is_inside(p, n))
+                {
+                    main_z1.at(i) = approximate(p, n);
+                    break;
+                }
+            }
+        }
 	}
 	for ( int i = 0; i < mesh.get_number_of_triangles(); i++ )
 	{
 		for ( int j = 0; j < (N+1)*(N+2)/2 - 3; j++ )
 		{
 			p = get_additional_point(i, j) + step;
-			if (!mesh.is_inside(p))
-				additional_z1.at(i).at(j) = 0;
-			else
+			if (mesh.is_inside(p))
 			{
 				for ( int m = 0; m < 3; m++ )
 					for ( int n : mesh.triangles.at(mesh.get_triangle_point_num(i, m)) )
@@ -126,6 +136,19 @@ void gcmethod_2d::step_any(vector2d step)
 							break;
 						}
 			}
+			else
+			{
+                mesh.make_inside_vector(p);
+                for ( int n = 0; n < mesh.get_number_of_triangles(); n++ )
+                {
+                    if (mesh.is_inside(p, n))
+                    {
+                        additional_z1.at(i).at(j) = approximate(p, n);
+                        break;
+                    }
+                }
+            }
+
 		}
 	}
 }
@@ -147,7 +170,7 @@ double gcmethod_2d::approximate(vector2d p, int tn)
 	switch (N)
 	{
 		case 1: result = approximate_linear(p, tn); break;
-		case 2: result = approximate_quadratic_special(p, tn); break;
+		case 2: result = approximate_quadratic(p, tn); break;
 		case 3: result = approximate_cubic(p, tn); break;
 		case 4: result = approximate_quartic(p, tn); break;
 		default: result = approximate_any(p, tn); break;
@@ -383,10 +406,10 @@ double gcmethod_2d::approximate_any(vector2d r, int tn)
 void gcmethod_2d::step()
 {
 	// time step for the equation u_t + lx*u_x + ly*u_y = 0;
-	step_any(vector2d(-tau/2 * lambda_x, 0));
+	step_any(vector2d(-tau * lambda_x, 0));
 	main_z1.swap(main_z0);
 	additional_z1.swap(additional_z0);
-	step_any(vector2d(0, -tau/2 * lambda_y));
+	step_any(vector2d(0, -tau * lambda_y));
 	main_z1.swap(main_z0);
 	additional_z1.swap(additional_z0);
 }
@@ -454,6 +477,28 @@ vector2d gcmethod_2d::get_additional_point(int n, int k)
 	vector2d ivec = (mesh.get_triangle_point(n, 1) - mesh.get_triangle_point(n, 0))/N;
 	vector2d kvec = (mesh.get_triangle_point(n, 2) - mesh.get_triangle_point(n, 1))/N;
 	return mesh.get_triangle_point(n, 0) + i*ivec + k*kvec;
+}
+
+double gcmethod_2d::exact_solution( vector2d p, double t )
+{
+    vector2d r = t * vector2d(lambda_x, lambda_y);
+    while (!mesh.is_inside(r))
+        mesh.make_inside_vector(r);
+    if (Magnitude(p-r) * Magnitude(p-r) < 5)
+        return 2;
+    else
+        return 0;
+}
+
+double gcmethod_2d::L_inf()
+{
+    double max_err = abs(main_z0.at(0) - exact_solution(mesh.get_point(0), tau*number_of_steps));
+    for ( int i = 1; i < mesh.get_number_of_points(); i++ )
+    {
+        if ( max_err < abs(main_z0.at(i) - exact_solution(mesh.get_point(i), tau*number_of_steps)) )
+            max_err = abs(main_z0.at(i) - exact_solution(mesh.get_point(i), tau*number_of_steps));
+    }
+    return max_err;
 }
 
 void gcmethod_2d::read_from_file(std::string path)
