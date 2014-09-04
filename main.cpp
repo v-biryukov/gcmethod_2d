@@ -6,5 +6,6 @@ int main()
 	m.create_mesh();
 	gcmethod_2d test = gcmethod_2d("gcmethod_2d.ini", m);
 	test.calculate();
+	test.analyze();
 	return 0;
 }

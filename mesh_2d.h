@@ -5,7 +5,8 @@ class mesh_2d
 	std::string path;
 	double size_x, size_y;
 	double h, max_ang;
-
+    bool is_structured;
+    int nx, ny;
 	triangulateio mesh;
 
 
@@ -16,8 +17,11 @@ public:
 
 	double get_size_x();
 	double get_size_y();
+	//int get_nx(){return static_cast<int>(size_x/h);};
+	//int get_ny(){return static_cast<int>(size_y/h);};
 	int get_number_of_points();
 	vector2d get_point(int n);
+	int get_opposite_point_num(int n);
 	int get_number_of_triangles();
 	int get_triangle_point_num(int n, int k);
 	vector2d get_triangle_point(int n, int k);
@@ -25,17 +29,23 @@ public:
 	bool is_inside(vector2d p, int n);
 	void make_inside_vector(vector2d & p);
 
+    double get_h() {return h;};
+	bool get_is_structured() {return is_structured;};
+
 	std::vector<std::vector<int> > neighbors;
 	std::vector<std::vector<int> > triangles;
 private:
 	void read_from_file(std::string path);
 	void find_neighbors();
 	void find_triangles();
+
 };
 
 mesh_2d::mesh_2d(std::string path)
 {
 	read_from_file(path);
+    nx = static_cast<int>(size_x/h);
+    ny = static_cast<int>(size_y/h);
 }
 
 void mesh_2d::read_from_file(std::string path)
@@ -67,26 +77,43 @@ void mesh_2d::read_from_file(std::string path)
 
 void mesh_2d::create_mesh()
 {
+    double step_x = size_x / nx;
+    double step_y = size_y / ny;
 	// Setting triangulateio in and out:
 	triangulateio in;
-    in.numberofpoints = 4;
+    in.numberofpoints = 2*(nx + ny);
     in.numberofpointattributes = 0;
     in.pointlist = (REAL *) malloc(in.numberofpoints * 2 * sizeof(REAL));
     in.pointmarkerlist = (int *) NULL;
     in.pointattributelist = (REAL *) NULL;
 
-    in.pointlist[0] = -size_x/2; in.pointlist[1] = -size_y/2;
-    in.pointlist[2] =  size_x/2; in.pointlist[3] = -size_y/2;
-    in.pointlist[4] =  size_x/2; in.pointlist[5] =  size_y/2;
-    in.pointlist[6] = -size_x/2; in.pointlist[7] =  size_y/2;
+    for ( int i = 0; i < nx; i++ )
+    {
+        in.pointlist[2*i + 0] = -size_x/2 + i * step_x;
+        in.pointlist[2*i + 1] = -size_y/2;
+        in.pointlist[2*(nx + ny) + 2*i + 0] = size_x/2 - i * step_x;
+        in.pointlist[2*(nx + ny) + 2*i + 1] = size_y/2;
+    }
+    for ( int j = 0; j < ny; j++ )
+    {
+        in.pointlist[2*nx + 2*j + 0] = +size_x/2;
+        in.pointlist[2*nx + 2*j + 1] = -size_y/2 + j * step_y;
+        in.pointlist[2*(2*nx + ny) + 2*j + 0] = -size_x/2;
+        in.pointlist[2*(2*nx + ny) + 2*j + 1] = +size_y/2 - j * step_y;
+    }
 
 
     in.numberofsegments = in.numberofpoints;
     in.segmentlist = (int *) malloc(in.numberofsegments * 2 * sizeof(int));
-	in.segmentlist[0] = 0; in.segmentlist[1] = 1;
-	in.segmentlist[2] = 1; in.segmentlist[3] = 2;
-	in.segmentlist[4] = 2; in.segmentlist[5] = 3;
-	in.segmentlist[6] = 3; in.segmentlist[7] = 0;
+    for ( int i = 0; i < in.numberofsegments-1; i++)
+    {
+        in.segmentlist[2*i + 0] = i;
+        in.segmentlist[2*i + 1] = i+1;
+    }
+	in.segmentlist[2*(in.numberofsegments-1)] = in.numberofsegments-1;
+	in.segmentlist[2*(in.numberofsegments-1) + 1] = 0;
+
+
     in.numberofholes = 0;
     in.numberofregions = 0;
 
@@ -102,7 +129,7 @@ void mesh_2d::create_mesh()
     mesh.edgemarkerlist = (int *) NULL;
 
     std::stringstream ss;
-    ss << "pzeqa" << std::fixed << h * h / 2;
+    ss << "pzeYqa" << std::fixed << h * h / 2;
     std::string str;
     ss >> str;
     char * s = new char[str.size() + 1];
@@ -112,13 +139,14 @@ void mesh_2d::create_mesh()
     triangulate(s, &in, &mesh, (struct triangulateio *) NULL);
     find_neighbors();
     find_triangles();
+    is_structured = false;
     std::cout << "Mesh has been generated successfully. " << std::endl;
 }
 
 void mesh_2d::create_structured_mesh()
 {
-    int nx = static_cast<int>(size_x/h);
-    int ny = static_cast<int>(size_y/h);
+    double step_x = size_x / nx;
+    double step_y = size_y / ny;
     mesh.numberofpoints = (nx+1)*(ny+1);
     mesh.pointlist = ((REAL *) malloc(mesh.numberofpoints * 2 * sizeof(REAL)));
     mesh.numberofpointattributes = 0;
@@ -137,8 +165,8 @@ void mesh_2d::create_structured_mesh()
     for (int j = 0; j < ny + 1; j++)
         for ( int i = 0; i < nx + 1; i++ )
         {
-            mesh.pointlist[2*(j * (nx+1) + i) + 0] = -size_x/2 + h * i;
-            mesh.pointlist[2*(j * (nx+1) + i) + 1] = -size_y/2 + h * j;
+            mesh.pointlist[2*(j * (nx+1) + i) + 0] = -size_x/2 + step_x * i;
+            mesh.pointlist[2*(j * (nx+1) + i) + 1] = -size_y/2 + step_y * j;
         }
     int ei = 0, ti = 0;
     for (int j = 0; j < ny; j++)
@@ -169,6 +197,7 @@ void mesh_2d::create_structured_mesh()
     }
     find_neighbors();
     find_triangles();
+    is_structured = true;
     std::cout << "Mesh has been generated successfully." << std::endl;
 }
 
@@ -191,6 +220,17 @@ void mesh_2d::find_triangles()
 		triangles.at(mesh.trianglelist[3*i + 1]).push_back(i);
 		triangles.at(mesh.trianglelist[3*i + 2]).push_back(i);
 	}
+	for ( int i = 0; i < 2*(nx + ny); i++ )
+        for ( auto x : triangles.at(get_opposite_point_num(i)) )
+            if ( std::find(triangles.at(i).begin(), triangles.at(i).end(), x) == triangles.at(i).end() )
+                triangles.at(i).push_back(x);
+
+    std::vector<int> corners = {0, nx, nx+ny, 2*nx+ny};
+    for (auto i : corners)
+        for ( auto j : corners )
+            for ( auto x : triangles.at(j) )
+                if ( std::find(triangles.at(i).begin(), triangles.at(i).end(), x) == triangles.at(i).end() )
+                    triangles.at(i).push_back(x);
 }
 
 double mesh_2d::get_size_x()
@@ -252,6 +292,23 @@ bool mesh_2d::is_inside(vector2d p, int n)
 	b2 = Vec(p-v3, v2-v3) < 0.0;
 	b3 = Vec(p-v1, v3-v1) < 0.0;
 	return ((b1 == b2) && (b2 == b3));
+}
+
+int mesh_2d::get_opposite_point_num(int n)
+{
+    if ((n > 0) && (n < nx))
+        return 2*nx + ny - n;
+    else if ((n > nx) && (n < nx + ny))
+        return 2*(nx+ny) - (n - nx);
+    else if ((n > nx+ny) && (n < 2*nx + ny))
+        return nx - (n-nx-ny);
+    else if ((n > 2*nx+ny) && (n < 2*nx + 2*ny))
+        return nx+ny - (n - 2*nx - ny);
+    else if (n == 0 || n == nx || n == nx + ny || n == 2*nx + ny)
+        return (n + nx + ny) % (2*nx + 2*ny);
+    else
+        std::cout << "Error in 'get_opposite_point_num'!\n";
+        //return (nx + ny + n) % (2*nx + 2*ny);
 }
 
 

@@ -35,6 +35,7 @@ class gcmethod_2d
 	int number_of_steps;
 	int N;
 	bool is_monotonic;
+	double eps_xy = 1e-10;
 	mesh_2d & mesh;
 	std::vector<double> main_z0;
 	std::vector<double> main_z1;
@@ -45,6 +46,7 @@ public:
 	gcmethod_2d(std::string path, mesh_2d & mesh_t);
 	void calculate();
 	void save_to_vtk(std::string name);
+	void analyze();
 private:
 	void init();
 	vector2d get_additional_point(int n, int k);
@@ -63,6 +65,7 @@ private:
     bool min_max_check(double z, int tn);
     double exact_solution(vector2d p, double t);
     double L_inf();
+    double L_1();
 	void step();
 };
 
@@ -91,63 +94,38 @@ void gcmethod_2d::save_to_vtk(std::string name)
 
 }
 
+
+
+
 void gcmethod_2d::step_any(vector2d step)
 {
 	vector2d p;
 	for ( int i = 0; i < mesh.get_number_of_points(); i++ )
 	{
 		p = mesh.get_point(i) + step;
-		if (mesh.is_inside(p))
-		{
-			for (auto n : mesh.triangles.at(i))
-			{
-				if (mesh.is_inside(p, n))
-				{
-					main_z1.at(i) = approximate(p, n);
-					break;
-				}
-			}
-		}
-		else
-		{
-            mesh.make_inside_vector(p);
-            for ( int n = 0; n < mesh.get_number_of_triangles(); n++ )
+		//if ( Magnitude(p) < 1 )
+        //    std::cout << "aaa";
+		if (!mesh.is_inside(p)) mesh.make_inside_vector(p);
+        for ( int n : mesh.triangles.at(i) )
+            if (mesh.is_inside(p, n))
             {
-                if (mesh.is_inside(p, n))
-                {
-                    main_z1.at(i) = approximate(p, n);
-                    break;
-                }
+                main_z1.at(i) = approximate(p, n);
+                break;
             }
-        }
 	}
 	for ( int i = 0; i < mesh.get_number_of_triangles(); i++ )
 	{
 		for ( int j = 0; j < (N+1)*(N+2)/2 - 3; j++ )
 		{
 			p = get_additional_point(i, j) + step;
-			if (mesh.is_inside(p))
-			{
-				for ( int m = 0; m < 3; m++ )
-					for ( int n : mesh.triangles.at(mesh.get_triangle_point_num(i, m)) )
-						if (mesh.is_inside(p, n))
-						{
-							additional_z1.at(i).at(j) = approximate(p, n);
-							break;
-						}
-			}
-			else
-			{
-                mesh.make_inside_vector(p);
-                for ( int n = 0; n < mesh.get_number_of_triangles(); n++ )
-                {
+			if (!mesh.is_inside(p)) mesh.make_inside_vector(p);
+            for ( int m = 0; m < 3; m++ )
+                for ( int n : mesh.triangles.at(mesh.get_triangle_point_num(i, m)) )
                     if (mesh.is_inside(p, n))
                     {
                         additional_z1.at(i).at(j) = approximate(p, n);
                         break;
                     }
-                }
-            }
 
 		}
 	}
@@ -161,7 +139,6 @@ bool gcmethod_2d::min_max_check(double z, int tn)
            ||(  z < main_z0.at(mesh.get_triangle_point_num(tn,0))
              && z < main_z0.at(mesh.get_triangle_point_num(tn,1))
              && z < main_z0.at(mesh.get_triangle_point_num(tn,2)) );
-
 }
 
 double gcmethod_2d::approximate(vector2d p, int tn)
@@ -170,7 +147,7 @@ double gcmethod_2d::approximate(vector2d p, int tn)
 	switch (N)
 	{
 		case 1: result = approximate_linear(p, tn); break;
-		case 2: result = approximate_quadratic(p, tn); break;
+		case 2: result = approximate_quadratic_special(p, tn); break;
 		case 3: result = approximate_cubic(p, tn); break;
 		case 4: result = approximate_quartic(p, tn); break;
 		default: result = approximate_any(p, tn); break;
@@ -499,6 +476,33 @@ double gcmethod_2d::L_inf()
             max_err = abs(main_z0.at(i) - exact_solution(mesh.get_point(i), tau*number_of_steps));
     }
     return max_err;
+}
+
+double gcmethod_2d::L_1()
+{
+    double sum = 0, temp;
+    if (mesh.get_is_structured())
+    {
+        for ( int i = 1; i < mesh.get_number_of_points(); i++ )
+        {
+            temp = abs(main_z0.at(i) - exact_solution(mesh.get_point(i), tau*number_of_steps));
+            if (mesh.get_point(i).x < -mesh.get_size_x()/2 + eps_xy || mesh.get_point(i).x > mesh.get_size_x()/2 - eps_xy)
+                temp /= 2;
+            if (mesh.get_point(i).y < -mesh.get_size_y()/2 + eps_xy || mesh.get_point(i).y > mesh.get_size_y()/2 - eps_xy)
+                temp /= 2;
+            sum +=  temp;
+        }
+        return mesh.get_h() * mesh.get_h() * sum / mesh.get_size_x() / mesh.get_size_y();
+    }
+    else return -1;
+}
+
+void gcmethod_2d::analyze()
+{
+    std::cout << "Results:" << std::endl;
+    std::cout << "Order of the approximation is " << N << std::endl;
+    std::cout << "L_infinity is equal to " << L_inf() << std::endl;
+    std::cout << "L_1 is equal to " << L_1() << std::endl;
 }
 
 void gcmethod_2d::read_from_file(std::string path)
