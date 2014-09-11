@@ -65,7 +65,7 @@ private:
 	vector2d get_additional_point(int n, int k);
 	void read_from_file(std::string path);
 	double initial_conditions(double x, double y)
-        {if (x*x + y*y < 5) return 2; else return 0;};//return 2.0/(1 + x*x + y*y);};
+        {if (x*x + y*y < 5) return 2.5; else return 0.0;};//return 2.0/(1 + x*x + y*y);};
 	double initial_conditions(vector2d v) {return initial_conditions(v.x, v.y);};
 	void step_any(vector2d step);
 	double approximate(vector2d p, int tn);
@@ -79,7 +79,7 @@ private:
     bool min_max_check(double z, int tn);
     double exact_solution(vector2d p, double t);
     double L_inf();
-    double L_1();
+    double L(int n);
 	void step();
 };
 
@@ -494,32 +494,40 @@ double gcmethod_2d::exact_solution( vector2d p, double t )
 
 double gcmethod_2d::L_inf()
 {
-    double max_err = abs(main_z0.at(0) - exact_solution(mesh.get_point(0), tau*number_of_steps));
+    double max_err = fabs(main_z0.at(0) - exact_solution(mesh.get_point(0), tau*number_of_steps));
     for ( int i = 1; i < mesh.get_number_of_points(); i++ )
     {
-        if ( max_err < abs(main_z0.at(i) - exact_solution(mesh.get_point(i), tau*number_of_steps)) )
-            max_err = abs(main_z0.at(i) - exact_solution(mesh.get_point(i), tau*number_of_steps));
+        if ( max_err < fabs(main_z0.at(i) - exact_solution(mesh.get_point(i), tau*number_of_steps)) )
+            max_err = fabs(main_z0.at(i) - exact_solution(mesh.get_point(i), tau*number_of_steps));
     }
     return max_err;
 }
 
-double gcmethod_2d::L_1()
+double gcmethod_2d::L(int n)
 {
     double sum = 0, temp;
-    if (mesh.get_is_structured())
+    for ( int i = 0; i < mesh.get_number_of_points(); i++ )
     {
-        for ( int i = 1; i < mesh.get_number_of_points(); i++ )
+        temp = pow(fabs(main_z0.at(i) - exact_solution(mesh.get_point(i), tau*number_of_steps)), n);
+        if ( mesh.get_is_structured() )
         {
-            temp = abs(main_z0.at(i) - exact_solution(mesh.get_point(i), tau*number_of_steps));
+            temp *= pow(mesh.get_h() * mesh.get_h(), n);
             if (mesh.get_point(i).x < -mesh.get_size_x()/2 + eps_xy || mesh.get_point(i).x > mesh.get_size_x()/2 - eps_xy)
                 temp /= 2;
             if (mesh.get_point(i).y < -mesh.get_size_y()/2 + eps_xy || mesh.get_point(i).y > mesh.get_size_y()/2 - eps_xy)
                 temp /= 2;
             sum +=  temp;
         }
-        return mesh.get_h() * mesh.get_h() * sum / mesh.get_size_x() / mesh.get_size_y();
+        else
+        {
+            sum += mesh.voronoi_areas.at(i) * temp;
+        }
     }
-    else return -1;
+    //for (auto e : mesh.voronoi_areas)
+    //    std::cout << e << " \n";
+    //std::cout << "\n";
+
+    return sum;//pow(sum, 1.0/n) / mesh.get_size_x() / mesh.get_size_y();
 }
 
 void gcmethod_2d::analyze()
@@ -527,7 +535,8 @@ void gcmethod_2d::analyze()
     std::cout << "Results:" << std::endl;
     std::cout << "Order of the approximation is " << N << std::endl;
     std::cout << "L_infinity is equal to " << std::fixed << std::setprecision(10) << L_inf() << std::endl;
-    std::cout << "L_1 is equal to " << std::fixed << std::setprecision(10) << L_1() << std::endl;
+    std::cout << "L_1 is equal to " << std::fixed << std::setprecision(10) << L(1) << std::endl;
+    std::cout << "L_2 is equal to " << std::fixed << std::setprecision(10) << L(2) << std::endl;
 }
 
 void gcmethod_2d::read_from_file(std::string path)
