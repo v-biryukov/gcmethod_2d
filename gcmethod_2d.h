@@ -29,6 +29,7 @@ extern "C"
 #include <string>
 #include <boost/property_tree/ptree.hpp>
 #include <boost/property_tree/ini_parser.hpp>
+#include <iomanip>
 #include "vector2.h"
 #include "mesh_2d.h"
 
@@ -43,9 +44,11 @@ class gcmethod_2d
 	double lambda_x, lambda_y;
 	double tau;
 	int number_of_steps;
+	int cur_step;
 	int N;
 	bool is_monotonic;
 	double eps_xy = 1e-10;
+	double eps_z = 1e-10;
 	mesh_2d & mesh;
 	std::vector<double> main_z0;
 	std::vector<double> main_z1;
@@ -61,7 +64,8 @@ private:
 	void init();
 	vector2d get_additional_point(int n, int k);
 	void read_from_file(std::string path);
-	double initial_conditions(double x, double y) {if (x*x + y*y < 5) return 2; else return 0;};
+	double initial_conditions(double x, double y)
+        {if (x*x + y*y < 5) return 2; else return 0;};//return 2.0/(1 + x*x + y*y);};
 	double initial_conditions(vector2d v) {return initial_conditions(v.x, v.y);};
 	void step_any(vector2d step);
 	double approximate(vector2d p, int tn);
@@ -82,6 +86,7 @@ private:
 gcmethod_2d::gcmethod_2d(std::string path, mesh_2d & mesh_t) : mesh(mesh_t)
 {
 	read_from_file(path);
+	cur_step = 0;
 }
 
 void gcmethod_2d::save_to_vtk(std::string name)
@@ -90,18 +95,29 @@ void gcmethod_2d::save_to_vtk(std::string name)
 	vtk_file << "# vtk DataFile Version 3.0\nVx data\nASCII\n\n";
 	vtk_file << "DATASET POLYDATA\nPOINTS " << mesh.get_number_of_points() << " float\n";
 	for ( int i = 0; i < mesh.get_number_of_points(); i++ )
-		vtk_file << mesh.get_point(i).x << " " << mesh.get_point(i).y << " "  << main_z0.at(i) << "\n";
+		vtk_file << mesh.get_point(i).x << " " << mesh.get_point(i).y << " "  << 0.0 << "\n";
 	vtk_file << "\nPOLYGONS " << mesh.get_number_of_triangles() << " " << mesh.get_number_of_triangles()*4 << "\n";
 	for (int i = 0; i < mesh.get_number_of_triangles(); i++)
 		vtk_file << 3 << " " << mesh.get_triangle_point_num(i,0) << " " << mesh.get_triangle_point_num(i,1) << " " << mesh.get_triangle_point_num(i,2) << "\n";
-	vtk_file << "\nPOINT_DATA " << mesh.get_number_of_points() << "\n" << "VECTORS vectors float\n";
-	//std::cout << "save points\n";
+	vtk_file << "\nPOINT_DATA " << mesh.get_number_of_points() << "\n";;
+	vtk_file << "SCALARS z FLOAT\n";
+	vtk_file << "LOOKUP_TABLE default\n";
 	for ( int i = 0; i < mesh.get_number_of_points(); i++ )
 	{
-		//std::cout << values0.at(mesh.triangles.at(i).at(0)).at(0) << "\n";
-		vtk_file <<  main_z0.at(i) << " 0.0 0.0\n";
+        vtk_file <<  main_z0.at(i) << "\n";
 	}
-
+	vtk_file << "SCALARS exact FLOAT\n";
+	vtk_file << "LOOKUP_TABLE default\n";
+	for ( int i = 0; i < mesh.get_number_of_points(); i++ )
+	{
+		vtk_file <<  exact_solution(mesh.get_point(i), tau*cur_step) << "\n";
+    }
+    vtk_file << "SCALARS z_minus_exact FLOAT\n";
+	vtk_file << "LOOKUP_TABLE default\n";
+	for ( int i = 0; i < mesh.get_number_of_points(); i++ )
+	{
+		vtk_file <<  main_z0.at(i) - exact_solution(mesh.get_point(i), tau*cur_step) << "\n";
+    }
 }
 
 
@@ -143,12 +159,12 @@ void gcmethod_2d::step_any(vector2d step)
 
 bool gcmethod_2d::min_max_check(double z, int tn)
 {
-    return   (  z > main_z0.at(mesh.get_triangle_point_num(tn,0))
-             && z > main_z0.at(mesh.get_triangle_point_num(tn,1))
-             && z > main_z0.at(mesh.get_triangle_point_num(tn,2)) )
-           ||(  z < main_z0.at(mesh.get_triangle_point_num(tn,0))
-             && z < main_z0.at(mesh.get_triangle_point_num(tn,1))
-             && z < main_z0.at(mesh.get_triangle_point_num(tn,2)) );
+    return   (  z > main_z0.at(mesh.get_triangle_point_num(tn,0)) + eps_z
+             && z > main_z0.at(mesh.get_triangle_point_num(tn,1)) + eps_z
+             && z > main_z0.at(mesh.get_triangle_point_num(tn,2)) + eps_z )
+           ||(  z < main_z0.at(mesh.get_triangle_point_num(tn,0)) - eps_z
+             && z < main_z0.at(mesh.get_triangle_point_num(tn,1)) - eps_z
+             && z < main_z0.at(mesh.get_triangle_point_num(tn,2)) - eps_z );
 }
 
 double gcmethod_2d::approximate(vector2d p, int tn)
@@ -157,7 +173,7 @@ double gcmethod_2d::approximate(vector2d p, int tn)
 	switch (N)
 	{
 		case 1: result = approximate_linear(p, tn); break;
-		case 2: result = approximate_quadratic_special(p, tn); break;
+		case 2: result = approximate_quadratic(p, tn); break;
 		case 3: result = approximate_cubic(p, tn); break;
 		case 4: result = approximate_quartic(p, tn); break;
 		default: result = approximate_any(p, tn); break;
@@ -399,6 +415,7 @@ void gcmethod_2d::step()
 	step_any(vector2d(0, -tau * lambda_y));
 	main_z1.swap(main_z0);
 	additional_z1.swap(additional_z0);
+	cur_step++;
 }
 
 
@@ -468,13 +485,11 @@ vector2d gcmethod_2d::get_additional_point(int n, int k)
 
 double gcmethod_2d::exact_solution( vector2d p, double t )
 {
-    vector2d r = t * vector2d(lambda_x, lambda_y);
+    vector2d r = p - t * vector2d(lambda_x, lambda_y);
     while (!mesh.is_inside(r))
         mesh.make_inside_vector(r);
-    if (Magnitude(p-r) * Magnitude(p-r) < 5)
-        return 2;
-    else
-        return 0;
+
+    return initial_conditions(r);
 }
 
 double gcmethod_2d::L_inf()
@@ -511,8 +526,8 @@ void gcmethod_2d::analyze()
 {
     std::cout << "Results:" << std::endl;
     std::cout << "Order of the approximation is " << N << std::endl;
-    std::cout << "L_infinity is equal to " << L_inf() << std::endl;
-    std::cout << "L_1 is equal to " << L_1() << std::endl;
+    std::cout << "L_infinity is equal to " << std::fixed << std::setprecision(10) << L_inf() << std::endl;
+    std::cout << "L_1 is equal to " << std::fixed << std::setprecision(10) << L_1() << std::endl;
 }
 
 void gcmethod_2d::read_from_file(std::string path)

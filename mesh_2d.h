@@ -170,39 +170,96 @@ void mesh_2d::create_structured_mesh()
     mesh.numberofedges = 3 * nx * ny + nx + ny;
     mesh.edgelist = ((int *) malloc(mesh.numberofedges * 2 * sizeof(int)));
     mesh.edgemarkerlist = (int *) NULL;
-    for (int j = 0; j < ny + 1; j++)
-        for ( int i = 0; i < nx + 1; i++ )
-        {
-            mesh.pointlist[2*(j * (nx+1) + i) + 0] = -size_x/2 + step_x * i;
-            mesh.pointlist[2*(j * (nx+1) + i) + 1] = -size_y/2 + step_y * j;
-        }
-    int ei = 0, ti = 0;
-    for (int j = 0; j < ny; j++)
-        for ( int i = 0; i < nx; i++ )
-        {
-            mesh.edgelist[ei++] =  j * (nx+1) + i;
-            mesh.edgelist[ei++] =  j * (nx+1) + i + 1;
-            mesh.edgelist[ei++] =  j * (nx+1) + i;
-            mesh.edgelist[ei++] =  (j+1) * (nx+1) + i;
-            mesh.edgelist[ei++] =  j * (nx+1) + i;
-            mesh.edgelist[ei++] =  (j+1) * (nx+1) + i+1;
-            mesh.trianglelist[ti++] = j * (nx+1) + i;
-            mesh.trianglelist[ti++] = j * (nx+1) + i+1;
-            mesh.trianglelist[ti++] = (j+1) * (nx+1) + i+1;
-            mesh.trianglelist[ti++] = j * (nx+1) + i;
-            mesh.trianglelist[ti++] = (j+1) * (nx+1) + i+1;
-            mesh.trianglelist[ti++] = (j+1) * (nx+1) + i;
-        }
-    for (int j = 0; j < ny; j++)
+    int pn = 0;
+    for ( int i = 0; i < nx; i++ )
     {
-        mesh.edgelist[ei++] =  j * (nx+1) + nx;
-        mesh.edgelist[ei++] =  (j+1) * (nx+1) + nx;
+        mesh.pointlist[pn++] = -size_x/2 + step_x * i;
+        mesh.pointlist[pn++] = -size_y/2;
+    }
+    for ( int j = 0; j < ny; j++ )
+    {
+        mesh.pointlist[pn++] = +size_x/2;
+        mesh.pointlist[pn++] = -size_y/2 + step_y * j;
     }
     for ( int i = 0; i < nx; i++ )
     {
-        mesh.edgelist[ei++] =  ny * (nx+1) + i;
-        mesh.edgelist[ei++] =  ny * (nx+1) + i + 1;
+        mesh.pointlist[pn++] = +size_x/2 - step_x * i;
+        mesh.pointlist[pn++] = +size_y/2;
     }
+    for ( int j = 0; j < ny; j++ )
+    {
+        mesh.pointlist[pn++] = -size_x/2;
+        mesh.pointlist[pn++] = +size_y/2 - step_y * j;
+    }
+    for (int j = 1; j < ny; j++)
+        for ( int i = 1; i < nx; i++ )
+        {
+            mesh.pointlist[pn++] = -size_x/2 + step_x * i;
+            mesh.pointlist[pn++] = -size_y/2 + step_y * j;
+        }
+    int ei = 0, ti = 0;
+    int p[4];
+    for ( int j = 0; j < ny; j++ )
+        for ( int i = 0; i < nx; i++ )
+        {
+            if ( j == 0 )
+            {
+                p[0] = i;
+                p[1] = i+1;
+                if ( i == nx-1 ) p[2] = nx+1; else p[2] = 2*(nx+ny) + i;
+                p[3] = 2*(nx+ny) + i -1;
+            }
+            else if ( i == 0 )
+            {
+                p[0] = 2*(nx+ny) - j;
+                p[1] = 2*(nx+ny) + (nx-1)*(j-1);
+                if ( j == ny-1 ) p[2] = 2*(nx+ny) - j - 2; else p[2] = 2*(nx+ny) + (nx-1)*j;
+                p[3] = 2*(nx+ny) - j - 1;
+            }
+            else if ( i == nx-1 )
+            {
+                p[0] = 2*(nx+ny) + nx - 2 + (nx-1)*(j-1);
+                p[1] = nx + j;
+                p[2] = nx + j + 1;
+                if ( j == ny-1 ) p[3] = nx + j + 2; else p[3] = 2*(nx+ny) + nx - 2 + (nx-1)*j;
+            }
+            else if ( j == ny - 1 )
+            {
+                p[0] = 2*(nx+ny) + (nx-1)*(ny-2) + i - 1;
+                p[1] = 2*(nx+ny) + (nx-1)*(ny-2) + i;
+                p[2] = 2*nx + ny - i - 1;
+                p[3] = 2*nx + ny - i;
+            }
+            else
+            {
+                p[0] = 2*(nx+ny) + (nx-1)*(j-1) + i - 1;
+                p[1] = 2*(nx+ny) + (nx-1)*(j-1) + i;
+                p[2] = 2*(nx+ny) + (nx-1)*(j) + i;
+                p[3] = 2*(nx+ny) + (nx-1)*(j) + i - 1;
+            }
+            mesh.edgelist[ei++] =  p[0];
+            mesh.edgelist[ei++] =  p[1];
+            mesh.edgelist[ei++] =  p[0];
+            mesh.edgelist[ei++] =  p[2];
+            mesh.edgelist[ei++] =  p[0];
+            mesh.edgelist[ei++] =  p[3];
+            mesh.trianglelist[ti++] = p[0];
+            mesh.trianglelist[ti++] = p[1];
+            mesh.trianglelist[ti++] = p[2];
+            mesh.trianglelist[ti++] = p[0];
+            mesh.trianglelist[ti++] = p[2];
+            mesh.trianglelist[ti++] = p[3];
+            if ( i == nx - 1 )
+            {
+                mesh.edgelist[ei++] = p[1];
+                mesh.edgelist[ei++] = p[2];
+            }
+            if ( j == ny - 1 )
+            {
+                mesh.edgelist[ei++] = p[3];
+                mesh.edgelist[ei++] = p[2];
+            }
+        }
     find_neighbors();
     find_triangles();
     is_structured = true;
@@ -316,7 +373,6 @@ int mesh_2d::get_opposite_point_num(int n)
         return (n + nx + ny) % (2*nx + 2*ny);
     else
         std::cout << "Error in 'get_opposite_point_num'!\n";
-        //return (nx + ny + n) % (2*nx + 2*ny);
 }
 
 
