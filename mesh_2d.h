@@ -311,26 +311,29 @@ void mesh_2d::find_triangles()
 }
 
 
-
+// Function that finds voronoi areas for each point and saves
+// voronoi diagram in out/voronoi.vtk
 void mesh_2d::find_voronoi_areas()
 {
-        int vnum = get_number_of_points();
-        std::ofstream vtk_file("out/voronoi.vtk");
-        vtk_file << "# vtk DataFile Version 3.0\nVx data\nASCII\n\n";
-        std::vector<vector2d> voronp;
-        std::vector<std::vector<int> > voront;
-////////////////////////////////
-
-
+    // Create file
+    std::ofstream vtk_file("out/voronoi.vtk");
+    vtk_file << "# vtk DataFile Version 3.0\nVx data\nASCII\n\n";
+    std::vector<vector2d> voronp;
+    std::vector<std::vector<int> > voront;
+    ////////////////////////////////
     voronoi_areas.resize(mesh.numberofpoints);
+    // coefs - vector of lines - 1 for each neighbor ( +1 for each neighbor of the neighbors ) +1 for each border
     std::vector< std::vector<double> > coefs;
+    // voronoi_local_points - points, that are constitute voronoi cell of the point i
     std::vector<vector2d> voronoi_local_points;
     for ( int i = 0; i < mesh.numberofpoints; i++ )
     {
-        coefs.push_back({0, 1, -size_x/2});
-        coefs.push_back({0, -1,-size_x/2});
-        coefs.push_back({1, 0, -size_y/2});
-        coefs.push_back({-1, 0, -size_y/2});
+        // lines which correspond to the borders
+        coefs.push_back({0, 1, -size_y/2});
+        coefs.push_back({0, -1,-size_y/2});
+        coefs.push_back({1, 0, -size_x/2});
+        coefs.push_back({-1, 0, -size_x/2});
+        // lines which correspond to the neighbors
         for (int j : neighbors.at(i))
         {
             vector2d p = get_point(i);
@@ -338,7 +341,8 @@ void mesh_2d::find_voronoi_areas()
             std::vector<double> temp = {(q-p).x, (q-p).y, (p*p - q*q)/2};
             coefs.push_back(temp);
         }
-
+        /*
+        // lines which correspond to the neighbors of the neighbors
         for (int j : neighbors.at(i))
         {
             for (int k : neighbors.at(j))
@@ -358,7 +362,10 @@ void mesh_2d::find_voronoi_areas()
                     if ( !is_in_coefs ) coefs.push_back(temp);
                 }
             }
-        }
+        }*/
+
+        // In the next cycle we are looking for intersections of the lines
+        // which are lying to the negative side of each line (or lie on line)
         for ( int m = 0; m < coefs.size(); m++ )
             for ( int n = m+1; n < coefs.size(); n++ )
             {
@@ -371,13 +378,6 @@ void mesh_2d::find_voronoi_areas()
                 for ( int k = 0; k < coefs.size(); k++ )
                     if ( k != m && k != n )
                     {
-                            /*std::cout << x << " " << y << "\n";
-                            if (coefs.at(k).at(1) != 0)
-                                std::cout << " y  = " << coefs.at(k).at(0)/coefs.at(k).at(1) << " x " << " + " << coefs.at(k).at(2)/coefs.at(k).at(1) << "\n";
-                            else
-                                std::cout << " x  = " << coefs.at(k).at(1)/coefs.at(k).at(0) << " y " << " + " << coefs.at(k).at(2)/coefs.at(k).at(0) << "\n";
-                            std::cout << x * coefs.at(k).at(0) + y * coefs.at(k).at(1) + coefs.at(k).at(2) << "\n\n";
-                            */
                         if ( x * coefs.at(k).at(0) + y * coefs.at(k).at(1) + coefs.at(k).at(2) > eps )
                         {
                             is_local_voronoi_point = false;
@@ -388,14 +388,15 @@ void mesh_2d::find_voronoi_areas()
                     if (std::find(voronoi_local_points.begin(), voronoi_local_points.end(), vector2d(x, y) - get_point(i)) == voronoi_local_points.end())
                         voronoi_local_points.push_back(vector2d(x, y) - get_point(i));
             }
+        // sorting voronoi_local_points by angle with {-1, 0}
         std::sort(voronoi_local_points.begin(), voronoi_local_points.end(),
                   [] (const vector2d & p, const vector2d & q) -> bool
                   {
                         return p.angle() < q.angle();
                   });
+        // calculating area and points and polygons of the voronoi diagram
+        // note: need to process corner points (especially right upper: n = nx+ny) specially
         double area = 0;
-        //if (i == nx+ny)
-        //    std::cout << 1;
         int voronn = voronp.size();
         voronp.push_back(get_point(i));
         voront.push_back({});
@@ -415,6 +416,7 @@ void mesh_2d::find_voronoi_areas()
         {
             area += fabs( Vec(voronoi_local_points.back(), voronoi_local_points.front()) )/2;
             area -= fabs( Vec(voronoi_local_points.back(), voronoi_local_points.at(voronoi_local_points.size()-2)) )/2;
+            voront.back().insert(voront.back().end() - 1, voronn);
         }
         else
         {
@@ -426,7 +428,8 @@ void mesh_2d::find_voronoi_areas()
         voronoi_local_points.clear();
     }
 
-        /////////////////////////////////
+    /////////////////////////////////
+    // Saving voronoi diagram
     vtk_file << "DATASET POLYDATA\nPOINTS " << voronp.size() << " float\n";
     for ( auto vp : voronp )
         vtk_file << vp.x << " " << vp.y << " "  << 0.0 << "\n";
@@ -446,13 +449,6 @@ void mesh_2d::find_voronoi_areas()
     {
         vtk_file <<  0 << "\n";
     }
-
-
-        //////////
-
-
-
-
 }
 
 double mesh_2d::get_size_x()

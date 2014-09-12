@@ -65,7 +65,7 @@ private:
 	vector2d get_additional_point(int n, int k);
 	void read_from_file(std::string path);
 	double initial_conditions(double x, double y)
-        {if (x*x + y*y < 5) return 2.5; else return 0.0;};//return 2.0/(1 + x*x + y*y);};
+        {return 2*exp(-(x*x+y*y)/5);};//{if (x*x + y*y < 5) return 2.5; else return 0.0;};//return 2.0/(1 + x*x + y*y);};
 	double initial_conditions(vector2d v) {return initial_conditions(v.x, v.y);};
 	void step_any(vector2d step);
 	double approximate(vector2d p, int tn);
