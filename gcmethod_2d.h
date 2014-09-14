@@ -45,8 +45,7 @@ class gcmethod_2d
 	double tau;
 	int number_of_steps;
 	int cur_step;
-	int N;
-	bool is_monotonic;
+
 	double eps_xy = 1e-10;
 	double eps_z = 1e-10;
 	mesh_2d & mesh;
@@ -56,16 +55,20 @@ class gcmethod_2d
 	std::vector<std::vector<double> > additional_z1;
 
 public:
+    int N;
+	bool is_monotonic;
 	gcmethod_2d(std::string path, mesh_2d & mesh_t);
 	void calculate();
 	void save_to_vtk(std::string name);
 	void analyze();
+    double L_inf();
+    double L(int n);
 private:
 	void init();
 	vector2d get_additional_point(int n, int k);
 	void read_from_file(std::string path);
 	double initial_conditions(double x, double y)
-        {return 2*exp(-(x*x+y*y)/5);};//{if (x*x + y*y < 5) return 2.5; else return 0.0;};//return 2.0/(1 + x*x + y*y);};
+        {return 2*exp(-(x*x+y*y)/5);};//return 2*exp(-(x*x+y*y)/5);};//{if (x*x + y*y < 5) return 2.5; else return 0.0;};//return 2.0/(1 + x*x + y*y);};
 	double initial_conditions(vector2d v) {return initial_conditions(v.x, v.y);};
 	void step_any(vector2d step);
 	double approximate(vector2d p, int tn);
@@ -78,8 +81,7 @@ private:
     double approximate_any(vector2d p, int tn);
     bool min_max_check(double z, int tn);
     double exact_solution(vector2d p, double t);
-    double L_inf();
-    double L(int n);
+
 	void step();
 };
 
@@ -511,7 +513,7 @@ double gcmethod_2d::L(int n)
         temp = pow(fabs(main_z0.at(i) - exact_solution(mesh.get_point(i), tau*number_of_steps)), n);
         if ( mesh.get_is_structured() )
         {
-            temp *= pow(mesh.get_h() * mesh.get_h(), n);
+            temp *= mesh.get_h() * mesh.get_h();
             if (mesh.get_point(i).x < -mesh.get_size_x()/2 + eps_xy || mesh.get_point(i).x > mesh.get_size_x()/2 - eps_xy)
                 temp /= 2;
             if (mesh.get_point(i).y < -mesh.get_size_y()/2 + eps_xy || mesh.get_point(i).y > mesh.get_size_y()/2 - eps_xy)
@@ -523,11 +525,7 @@ double gcmethod_2d::L(int n)
             sum += mesh.voronoi_areas.at(i) * temp;
         }
     }
-    //for (auto e : mesh.voronoi_areas)
-    //    std::cout << e << " \n";
-    //std::cout << "\n";
-
-    return sum;//pow(sum, 1.0/n) / mesh.get_size_x() / mesh.get_size_y();
+    return pow(sum, 1.0/n) / mesh.get_size_x() / mesh.get_size_y();
 }
 
 void gcmethod_2d::analyze()

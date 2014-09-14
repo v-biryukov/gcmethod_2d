@@ -40,6 +40,7 @@ public:
 	void make_inside_vector(vector2d & p);
 
     double get_h() {return h;};
+    void set_h(double ht);
 	bool get_is_structured() {return is_structured;};
 
 	std::vector<std::vector<int> > neighbors;
@@ -55,6 +56,13 @@ private:
 mesh_2d::mesh_2d(std::string path)
 {
 	read_from_file(path);
+    nx = static_cast<int>(size_x/h);
+    ny = static_cast<int>(size_y/h);
+}
+
+void mesh_2d::set_h(double ht)
+{
+    h = ht;
     nx = static_cast<int>(size_x/h);
     ny = static_cast<int>(size_y/h);
 }
@@ -150,7 +158,7 @@ void mesh_2d::create_unstructured_mesh()
     mesh.edgemarkerlist = (int *) NULL;
 
     std::stringstream ss;
-    ss << "pzeYqa" << std::fixed << h * h / 2;
+    ss << "pzeQYqa" << std::fixed << h * h / 2;
     std::string str;
     ss >> str;
     char * s = new char[str.size() + 1];
