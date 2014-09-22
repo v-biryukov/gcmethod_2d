@@ -15,8 +15,9 @@ class mesh_2d
 	double h, max_ang;
     bool is_structured;
     int nx, ny;
-	triangulateio mesh;
+	//triangulateio mesh;
     double eps = 1e-10;
+    int N;
 
 public:
 	mesh_2d(std::string path);
@@ -24,32 +25,38 @@ public:
 	void create_structured_mesh();
 	void create_unstructured_mesh();
 
-	double get_size_x();
-	double get_size_y();
-	//int get_nx(){return static_cast<int>(size_x/h);};
-	//int get_ny(){return static_cast<int>(size_y/h);};
+
 	int get_number_of_points();
 	vector2d get_point(int n);
 	int get_opposite_point_num(int n);
 	int get_number_of_triangles();
 	int get_triangle_point_num(int n, int k);
 	vector2d get_triangle_point(int n, int k);
+
+    double get_size_x() {return size_x;};
+	double get_size_y() {return size_y;};
+    void set_h(double ht);
+    double get_h() {return h;};
+	bool get_is_structured() {return is_structured;};
+
 	bool is_inside(vector2d p);
 	bool is_inside(vector2d p, int n);
 	bool is_corner(int n);
 	void make_inside_vector(vector2d & p);
 
-    double get_h() {return h;};
-    void set_h(double ht);
-	bool get_is_structured() {return is_structured;};
+	void save_to_class_data(triangulateio * mesh);
 
+	std::vector<vector2d> points;
+	std::vector<std::vector<int>> elements;
 	std::vector<std::vector<int> > neighbors;
 	std::vector<std::vector<int> > triangles;
 	std::vector<double> voronoi_areas;
+	int number_of_main_points;
+
 private:
 	void read_from_file(std::string path);
-	void find_neighbors();
-	void find_triangles();
+	void find_neighbors(triangulateio * mesh);
+	void find_triangles(triangulateio * mesh);
 	void find_voronoi_areas();
 };
 
@@ -94,6 +101,7 @@ void mesh_2d::read_from_file(std::string path)
     max_ang = pt.get<REAL>("Method.max_ang");
     string is_structured_str = pt.get<std::string>("Mesh.is_structured");
     is_structured = ( is_structured_str == "true" || is_structured_str == "True" || is_structured_str == "TRUE" );
+    N = pt.get<int>("Method.N");
 }
 
 void mesh_2d::create_mesh()
@@ -109,7 +117,7 @@ void mesh_2d::create_unstructured_mesh()
     double step_x = size_x / nx;
     double step_y = size_y / ny;
 	// Setting triangulateio in and out:
-	triangulateio in;
+	triangulateio in, mesh;
     in.numberofpoints = 2*(nx + ny);
     in.numberofpointattributes = 0;
     in.pointlist = (REAL *) malloc(in.numberofpoints * 2 * sizeof(REAL));
@@ -166,16 +174,80 @@ void mesh_2d::create_unstructured_mesh()
     s[str.size()] = '\0';
 
     triangulate(s, &in, &mesh, (struct triangulateio *) NULL);
-    find_neighbors();
-    find_triangles();
-    find_voronoi_areas();
+    save_to_class_data(&mesh);
     std::cout << "Mesh has been generated successfully." << std::endl;
+}
+
+void mesh_2d::save_to_class_data(triangulateio * mesh)
+{
+    // Main points
+    number_of_main_points = mesh->numberofpoints;
+    for ( int i = 0; i < mesh->numberofpoints; i++ )
+        points.push_back(vector2d(mesh->pointlist[2*i+0], mesh->pointlist[2*i+1]));
+    int points_per_el = (N+1)*(N+2)/2;
+    elements.resize(mesh->numberoftriangles, std::vector<int>(points_per_el));
+    for ( int i = 0; i < mesh->numberoftriangles; i++ )
+    {
+        elements.at(i).at(0) = mesh->trianglelist[3*i + 0];
+        elements.at(i).at(1) = mesh->trianglelist[3*i + 1];
+        elements.at(i).at(2) = mesh->trianglelist[3*i + 2];
+    }
+    find_neighbors(mesh);
+    find_triangles(mesh);
+    // Additional points:
+    for ( int i = 0; i < mesh->numberofedges; i++ )
+    {
+        vector2d dp = (points.at(mesh->edgelist[2*i + 1]) - points.at(mesh->edgelist[2*i + 0]))/N;
+        for ( int k = 1; k < N; k++ )
+        {
+            points.push_back(points.at(mesh->edgelist[2*i + 0]) + k * dp);
+            int ep0 = mesh->edgelist[2*i + 0];
+            int ep1 = mesh->edgelist[2*i + 1];
+            for (auto t : triangles.at(ep0))
+                for (auto s : triangles.at(ep1))
+                {
+                    if (t == s)
+                        {
+                            std::vector<int> & ts = elements.at(t);
+                            if (ts.at(0) == ep0 && ts.at(1) == ep1) ts.at(3 + k - 1) = points.size()-1;
+                            else if (ts.at(1) == ep0 && ts.at(0) == ep1) ts.at(3 + N - k - 1) = points.size()-1;
+                            else if (ts.at(1) == ep0 && ts.at(2) == ep1) ts.at(3 + N + k - 2) = points.size()-1;
+                            else if (ts.at(2) == ep0 && ts.at(1) == ep1) ts.at(3 + 2*N - k - 2) = points.size()-1;
+                            else if (ts.at(2) == ep0 && ts.at(0) == ep1) ts.at(3 + 2*N + k - 3) = points.size()-1;
+                            else if (ts.at(0) == ep0 && ts.at(2) == ep1) ts.at(3 + 3*N - k - 3) = points.size()-1;
+                        }
+                }
+            triangles.push_back(triangles.at(mesh->edgelist[2*i + 0]));
+            triangles.back().insert(triangles.back().end(), triangles.at(mesh->edgelist[2*i + 1]).begin(), triangles.at(mesh->edgelist[2*i + 1]).end());
+        }
+    }
+    for ( int i = 0; i < mesh->numberoftriangles; i++ )
+    {
+        for ( int k = 0; k < (N-1)*(N-2)/2; k++ )
+        {
+            int l = 0, m = k;
+            while ( m > l )
+            {
+                l++;
+                m -= l;
+            }
+            vector2d lvec = (points.at(mesh->trianglelist[3*i + 1]) - points.at(mesh->trianglelist[3*i + 0]))/N;
+            vector2d mvec = (points.at(mesh->trianglelist[3*i + 2]) - points.at(mesh->trianglelist[3*i + 1]))/N;
+            points.push_back(points.at(mesh->trianglelist[3*i + 0]) + (l+2)*lvec + (m+1)*mvec);
+            elements.at(i).at(3 + 3*(N-1) + k) = points.size()-1;
+            triangles.push_back(triangles.at(mesh->trianglelist[3*i + 0]));
+            triangles.back().insert(triangles.back().end(), triangles.at(mesh->trianglelist[3*i + 1]).begin(), triangles.at(mesh->trianglelist[3*i + 1]).end());
+            triangles.back().insert(triangles.back().end(), triangles.at(mesh->trianglelist[3*i + 2]).begin(), triangles.at(mesh->trianglelist[3*i + 2]).end());
+        }
+    }
+    find_voronoi_areas();
 }
 
 void mesh_2d::create_structured_mesh()
 {
     double step_x = size_x / nx;
     double step_y = size_y / ny;
+    triangulateio mesh;
     mesh.numberofpoints = (nx+1)*(ny+1);
     mesh.pointlist = ((REAL *) malloc(mesh.numberofpoints * 2 * sizeof(REAL)));
     mesh.numberofpointattributes = 0;
@@ -281,29 +353,28 @@ void mesh_2d::create_structured_mesh()
                 mesh.edgelist[ei++] = p[2];
             }
         }
-    find_neighbors();
-    find_triangles();
+    save_to_class_data(&mesh);
     std::cout << "Mesh has been generated successfully." << std::endl;
 }
 
-void mesh_2d::find_neighbors()
+void mesh_2d::find_neighbors(triangulateio * mesh)
 {
-	neighbors.resize(mesh.numberofpoints);
-	for ( int i = 0; i < mesh.numberofedges; i++)
+	neighbors.resize(mesh->numberofpoints);
+	for ( int i = 0; i < mesh->numberofedges; i++)
 	{
-		neighbors.at(mesh.edgelist[2*i + 0]).push_back(mesh.edgelist[2*i + 1]);
-		neighbors.at(mesh.edgelist[2*i + 1]).push_back(mesh.edgelist[2*i + 0]);
+		neighbors.at(mesh->edgelist[2*i + 0]).push_back(mesh->edgelist[2*i + 1]);
+		neighbors.at(mesh->edgelist[2*i + 1]).push_back(mesh->edgelist[2*i + 0]);
 	}
 }
 
-void mesh_2d::find_triangles()
+void mesh_2d::find_triangles(triangulateio * mesh)
 {
-	triangles.resize(mesh.numberofpoints);
-	for ( int i = 0; i < mesh.numberoftriangles; i++)
+	triangles.resize(mesh->numberofpoints);
+	for ( int i = 0; i < mesh->numberoftriangles; i++)
 	{
-		triangles.at(mesh.trianglelist[3*i + 0]).push_back(i);
-		triangles.at(mesh.trianglelist[3*i + 1]).push_back(i);
-		triangles.at(mesh.trianglelist[3*i + 2]).push_back(i);
+		triangles.at(mesh->trianglelist[3*i + 0]).push_back(i);
+		triangles.at(mesh->trianglelist[3*i + 1]).push_back(i);
+		triangles.at(mesh->trianglelist[3*i + 2]).push_back(i);
 	}
 	for ( int i = 0; i < 2*(nx + ny); i++ )
         for ( auto x : triangles.at(get_opposite_point_num(i)) )
@@ -329,12 +400,12 @@ void mesh_2d::find_voronoi_areas()
     std::vector<vector2d> voronp;
     std::vector<std::vector<int> > voront;
     ////////////////////////////////
-    voronoi_areas.resize(mesh.numberofpoints);
+    voronoi_areas.resize(points.size());
     // coefs - vector of lines - 1 for each neighbor ( +1 for each neighbor of the neighbors ) +1 for each border
     std::vector< std::vector<double> > coefs;
     // voronoi_local_points - points, that are constitute voronoi cell of the point i
     std::vector<vector2d> voronoi_local_points;
-    for ( int i = 0; i < mesh.numberofpoints; i++ )
+    for ( int i = 0; i < number_of_main_points; i++ )
     {
         // lines which correspond to the borders
         coefs.push_back({0, 1, -size_y/2});
@@ -349,7 +420,7 @@ void mesh_2d::find_voronoi_areas()
             std::vector<double> temp = {(q-p).x, (q-p).y, (p*p - q*q)/2};
             coefs.push_back(temp);
         }
-        /*
+
         // lines which correspond to the neighbors of the neighbors
         for (int j : neighbors.at(i))
         {
@@ -370,7 +441,7 @@ void mesh_2d::find_voronoi_areas()
                     if ( !is_in_coefs ) coefs.push_back(temp);
                 }
             }
-        }*/
+        }
 
         // In the next cycle we are looking for intersections of the lines
         // which are lying to the negative side of each line (or lie on line)
@@ -459,33 +530,25 @@ void mesh_2d::find_voronoi_areas()
     }
 }
 
-double mesh_2d::get_size_x()
-{
-	return size_x;
-}
-double mesh_2d::get_size_y()
-{
-	return size_y;
-}
 
 int mesh_2d::get_number_of_points()
 {
-	return mesh.numberofpoints;
+	return points.size();
 }
 
 vector2d mesh_2d::get_point(int n)
 {
-	return vector2d(mesh.pointlist[2*n], mesh.pointlist[2*n+1]);
+    return points.at(n);
 }
 
 int mesh_2d::get_number_of_triangles()
 {
-	return mesh.numberoftriangles;
+	return elements.size();
 }
 
 int mesh_2d::get_triangle_point_num(int n, int k)
 {
-	return mesh.trianglelist[3*n + k];
+    return elements.at(n).at(k);
 }
 
 vector2d mesh_2d::get_triangle_point(int n, int k)
