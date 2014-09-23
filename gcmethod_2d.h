@@ -68,7 +68,7 @@ private:
 	vector2d get_additional_point(int n, int k);
 	void read_from_file(std::string path);
 	double initial_conditions(double x, double y)
-        {return 2*exp(-(x*x+y*y)/5);};//return 2*exp(-(x*x+y*y)/5);};//{if (x*x + y*y < 5) return 2.5; else return 0.0;};//return 2.0/(1 + x*x + y*y);};
+        {if (x*x + y*y < 9) return 2.5; else return 0.0;};//return 2*exp(-(x*x+y*y)/5);};//{if (x*x + y*y < 5) return 2.5; else return 0.0;};//return 2.0/(1 + x*x + y*y);};
 	double initial_conditions(vector2d v) {return initial_conditions(v.x, v.y);};
 	void step_any(vector2d step);
 	double approximate(vector2d p, int tn);
@@ -100,9 +100,48 @@ void gcmethod_2d::save_to_vtk(std::string name)
 	vtk_file << "DATASET POLYDATA\nPOINTS " << mesh.get_number_of_points() << " float\n";
 	for ( int i = 0; i < mesh.get_number_of_points(); i++ )
 		vtk_file << mesh.get_point(i).x << " " << mesh.get_point(i).y << " "  << 0.0 << "\n";
-	vtk_file << "\nPOLYGONS " << mesh.get_number_of_triangles() << " " << mesh.get_number_of_triangles()*4 << "\n";
+	vtk_file << "\nPOLYGONS " << mesh.get_number_of_triangles()*N*N << " " << mesh.get_number_of_triangles()*N*N*4 << "\n";
 	for (int i = 0; i < mesh.get_number_of_triangles(); i++)
-		vtk_file << 3 << " " << mesh.get_triangle_point_num(i,0) << " " << mesh.get_triangle_point_num(i,1) << " " << mesh.get_triangle_point_num(i,2) << "\n";
+	{
+		//vtk_file << 3 << " " << mesh.get_triangle_point_num(i,0) << " " << mesh.get_triangle_point_num(i,1) << " " << mesh.get_triangle_point_num(i,2) << "\n";
+        if (N == 1)
+            vtk_file << 3 << " " << mesh.get_triangle_point_num(i,0) << " " << mesh.get_triangle_point_num(i,1) << " " << mesh.get_triangle_point_num(i,2) << "\n";
+        if (N == 2) {
+            vtk_file << 3 << " " << mesh.get_triangle_point_num(i,0) << " " << mesh.get_triangle_point_num(i,3) << " " << mesh.get_triangle_point_num(i,5) << "\n";
+            vtk_file << 3 << " " << mesh.get_triangle_point_num(i,3) << " " << mesh.get_triangle_point_num(i,1) << " " << mesh.get_triangle_point_num(i,4) << "\n";
+            vtk_file << 3 << " " << mesh.get_triangle_point_num(i,4) << " " << mesh.get_triangle_point_num(i,2) << " " << mesh.get_triangle_point_num(i,5) << "\n";
+            vtk_file << 3 << " " << mesh.get_triangle_point_num(i,3) << " " << mesh.get_triangle_point_num(i,4) << " " << mesh.get_triangle_point_num(i,5) << "\n";
+        }
+        if (N == 3) {
+            vtk_file << 3 << " " << mesh.get_triangle_point_num(i,0) << " " << mesh.get_triangle_point_num(i,3) << " " << mesh.get_triangle_point_num(i,8) << "\n";
+            vtk_file << 3 << " " << mesh.get_triangle_point_num(i,3) << " " << mesh.get_triangle_point_num(i,4) << " " << mesh.get_triangle_point_num(i,9) << "\n";
+            vtk_file << 3 << " " << mesh.get_triangle_point_num(i,4) << " " << mesh.get_triangle_point_num(i,1) << " " << mesh.get_triangle_point_num(i,5) << "\n";
+            vtk_file << 3 << " " << mesh.get_triangle_point_num(i,5) << " " << mesh.get_triangle_point_num(i,6) << " " << mesh.get_triangle_point_num(i,9) << "\n";
+            vtk_file << 3 << " " << mesh.get_triangle_point_num(i,6) << " " << mesh.get_triangle_point_num(i,2) << " " << mesh.get_triangle_point_num(i,7) << "\n";
+            vtk_file << 3 << " " << mesh.get_triangle_point_num(i,7) << " " << mesh.get_triangle_point_num(i,8) << " " << mesh.get_triangle_point_num(i,9) << "\n";
+            vtk_file << 3 << " " << mesh.get_triangle_point_num(i,3) << " " << mesh.get_triangle_point_num(i,9) << " " << mesh.get_triangle_point_num(i,8) << "\n";
+            vtk_file << 3 << " " << mesh.get_triangle_point_num(i,4) << " " << mesh.get_triangle_point_num(i,5) << " " << mesh.get_triangle_point_num(i,9) << "\n";
+            vtk_file << 3 << " " << mesh.get_triangle_point_num(i,6) << " " << mesh.get_triangle_point_num(i,7) << " " << mesh.get_triangle_point_num(i,9) << "\n";
+        }
+        if (N == 4) {
+            vtk_file << 3 << " " << mesh.get_triangle_point_num(i,0) << " " << mesh.get_triangle_point_num(i,3) << " " << mesh.get_triangle_point_num(i,11) << "\n";
+            vtk_file << 3 << " " << mesh.get_triangle_point_num(i,3) << " " << mesh.get_triangle_point_num(i,4) << " " << mesh.get_triangle_point_num(i,12) << "\n";
+            vtk_file << 3 << " " << mesh.get_triangle_point_num(i,4) << " " << mesh.get_triangle_point_num(i,5) << " " << mesh.get_triangle_point_num(i,13) << "\n";
+            vtk_file << 3 << " " << mesh.get_triangle_point_num(i,5) << " " << mesh.get_triangle_point_num(i,1) << " " << mesh.get_triangle_point_num(i,6) << "\n";
+            vtk_file << 3 << " " << mesh.get_triangle_point_num(i,6) << " " << mesh.get_triangle_point_num(i,7) << " " << mesh.get_triangle_point_num(i,13) << "\n";
+            vtk_file << 3 << " " << mesh.get_triangle_point_num(i,7) << " " << mesh.get_triangle_point_num(i,8) << " " << mesh.get_triangle_point_num(i,14) << "\n";
+            vtk_file << 3 << " " << mesh.get_triangle_point_num(i,8) << " " << mesh.get_triangle_point_num(i,2) << " " << mesh.get_triangle_point_num(i,9) << "\n";
+            vtk_file << 3 << " " << mesh.get_triangle_point_num(i,9) << " " << mesh.get_triangle_point_num(i,10) << " " << mesh.get_triangle_point_num(i,14) << "\n";
+            vtk_file << 3 << " " << mesh.get_triangle_point_num(i,10) << " " << mesh.get_triangle_point_num(i,11) << " " << mesh.get_triangle_point_num(i,12) << "\n";
+            vtk_file << 3 << " " << mesh.get_triangle_point_num(i,3) << " " << mesh.get_triangle_point_num(i,12) << " " << mesh.get_triangle_point_num(i,11) << "\n";
+            vtk_file << 3 << " " << mesh.get_triangle_point_num(i,3) << " " << mesh.get_triangle_point_num(i,13) << " " << mesh.get_triangle_point_num(i,12) << "\n";
+            vtk_file << 3 << " " << mesh.get_triangle_point_num(i,5) << " " << mesh.get_triangle_point_num(i,6) << " " << mesh.get_triangle_point_num(i,13) << "\n";
+            vtk_file << 3 << " " << mesh.get_triangle_point_num(i,7) << " " << mesh.get_triangle_point_num(i,14) << " " << mesh.get_triangle_point_num(i,13) << "\n";
+            vtk_file << 3 << " " << mesh.get_triangle_point_num(i,8) << " " << mesh.get_triangle_point_num(i,9) << " " << mesh.get_triangle_point_num(i,14) << "\n";
+            vtk_file << 3 << " " << mesh.get_triangle_point_num(i,10) << " " << mesh.get_triangle_point_num(i,12) << " " << mesh.get_triangle_point_num(i,14) << "\n";
+            vtk_file << 3 << " " << mesh.get_triangle_point_num(i,12) << " " << mesh.get_triangle_point_num(i,13) << " " << mesh.get_triangle_point_num(i,14) << "\n";
+        }
+    }
 	vtk_file << "\nPOINT_DATA " << mesh.get_number_of_points() << "\n";;
 	vtk_file << "SCALARS z FLOAT\n";
 	vtk_file << "LOOKUP_TABLE default\n";
@@ -133,6 +172,8 @@ void gcmethod_2d::step_any(vector2d step)
 	for ( int i = 0; i < mesh.get_number_of_points(); i++ )
 	{
 		p = mesh.get_point(i) + step;
+		if ((p.x-0)*(p.x-0) + p.y*p.y < 1)
+            int a = 0;
 		if (!mesh.is_inside(p)) mesh.make_inside_vector(p);
         for ( int n : mesh.triangles.at(i) )
             if (mesh.is_inside(p, n))
@@ -158,14 +199,14 @@ double gcmethod_2d::approximate(vector2d p, int tn)
     double result;
 	switch (N)
 	{
-		case 1: result = approximate_linear(p, tn); break;
+		case 1: result = prepare_approximate_linear(p, tn); break;
 		case 2: result = approximate_quadratic(p, tn); break;
 		case 3: result = approximate_cubic(p, tn); break;
 		case 4: result = approximate_quartic(p, tn); break;
 		default: break;
 	}
 	if (is_monotonic && min_max_check(result, tn))
-        return approximate_linear(p, tn);
+        return prepare_approximate_linear(p, tn);
     else
         return result;
 }
@@ -181,9 +222,10 @@ double gcmethod_2d::prepare_approximate_linear(vector2d p, int tn)
 	//double vy = (z3-z1)*(x3-x2) - (x3-x1)*(z3-z2);
 	double vz = (x3-x1)*(y3-y2) - (y3-y1)*(x3-x2);
 
-    weights.at(tn).at(0) = ((x1-p.x)*(y3-y2) + (y1-p.y)*(x2-x3) + vz) / vz;
-    weights.at(tn).at(1) = ((x1-p.x)*(y1-y3) + (y1-p.y)*(x3-x1)) / vz;
-    weights.at(tn).at(2) = ((x1-p.x)*(y2-y1) + (y1-p.y)*(x1-x2)) / vz;
+    //weights.at(tn).at(0) = ((x1-p.x)*(y3-y2) + (y1-p.y)*(x2-x3) + vz) / vz;
+    //weights.at(tn).at(1) = ((x1-p.x)*(y1-y3) + (y1-p.y)*(x3-x1)) / vz;
+    //weights.at(tn).at(2) = ((x1-p.x)*(y2-y1) + (y1-p.y)*(x1-x2)) / vz;
+    return ((x1-p.x)*(y3-y2) + (y1-p.y)*(x2-x3) + vz) / vz*z1 + ((x1-p.x)*(y1-y3) + (y1-p.y)*(x3-x1)) / vz*z2 + ((x1-p.x)*(y2-y1) + (y1-p.y)*(x1-x2)) / vz*z3;
 }
 
 double gcmethod_2d::approximate_linear(vector2d p, int tn)
@@ -209,8 +251,10 @@ double gcmethod_2d::approximate_quadratic(vector2d r, int tn)
 	v += sb*(2*sb-1) * values0.at(mesh.get_triangle_point_num(tn, 1));
 	v += sc*(2*sc-1) * values0.at(mesh.get_triangle_point_num(tn, 2));
 	v += 4*sa*sb * values0.at(mesh.get_triangle_point_num(tn, 3));
-	v += 4*sc*sa * values0.at(mesh.get_triangle_point_num(tn, 4));
-	v += 4*sb*sc * values0.at(mesh.get_triangle_point_num(tn, 5));
+	v += 4*sb*sc * values0.at(mesh.get_triangle_point_num(tn, 4));
+	v += 4*sc*sa * values0.at(mesh.get_triangle_point_num(tn, 5));//std::cout << v << "\n";
+    if (r.x*r.x + r.y*r.y < 6 && v < 0.5)
+        int b = 1;
 	return v;
 }
 
@@ -228,13 +272,13 @@ double gcmethod_2d::approximate_cubic(vector2d r, int tn)
 	v += sa*(3*sa-1)*(3*sa-2)/2 * values0.at(mesh.get_triangle_point_num(tn, 0));
 	v += sb*(3*sb-1)*(3*sb-2)/2 * values0.at(mesh.get_triangle_point_num(tn, 1));
 	v += sc*(3*sc-1)*(3*sc-2)/2 * values0.at(mesh.get_triangle_point_num(tn, 2));
-	v += 9*sa*(3*sa-1)*sb/2 * additional_z0.at(tn).at(0);
-	v += 9*sa*(3*sa-1)*sc/2 * additional_z0.at(tn).at(1);
-	v += 9*sb*(3*sb-1)*sa/2 * additional_z0.at(tn).at(2);
-	v += 27*sa*sb*sc * additional_z0.at(tn).at(3);
-	v += 9*sc*(3*sc-1)*sa/2 * additional_z0.at(tn).at(4);
-    v += 9*sb*(3*sb-1)*sc/2 * additional_z0.at(tn).at(5);
-	v += 9*sc*(3*sc-1)*sb/2 * additional_z0.at(tn).at(6);
+	v += 9*sa*(3*sa-1)*sb/2     * values0.at(mesh.get_triangle_point_num(tn, 3));
+	v += 9*sb*(3*sb-1)*sa/2     * values0.at(mesh.get_triangle_point_num(tn, 4));
+    v += 9*sb*(3*sb-1)*sc/2     * values0.at(mesh.get_triangle_point_num(tn, 5));
+    v += 9*sc*(3*sc-1)*sb/2     * values0.at(mesh.get_triangle_point_num(tn, 6));
+	v += 9*sc*(3*sc-1)*sa/2     * values0.at(mesh.get_triangle_point_num(tn, 7));
+	v += 9*sa*(3*sa-1)*sc/2     * values0.at(mesh.get_triangle_point_num(tn, 8));
+	v += 27*sa*sb*sc            * values0.at(mesh.get_triangle_point_num(tn, 9));
 	return v;
 }
 
@@ -253,19 +297,18 @@ double gcmethod_2d::approximate_quartic(vector2d r, int tn)
 	v += sa*(4*sa-1)*(2*sa-1)*(4*sa-3)/3 * values0.at(mesh.get_triangle_point_num(tn, 0));
 	v += sb*(4*sb-1)*(2*sb-1)*(4*sb-3)/3 * values0.at(mesh.get_triangle_point_num(tn, 1));
 	v += sc*(4*sc-1)*(2*sc-1)*(4*sc-3)/3 * values0.at(mesh.get_triangle_point_num(tn, 2));
-	v += 16*sa*(4*sa-1)*(2*sa-1)*sb/3 * additional_z0.at(tn).at(0);
-	v += 16*sa*(4*sa-1)*(2*sa-1)*sc/3 * additional_z0.at(tn).at(1);
-
-	v += 4*sa*(4*sa-1)*sb*(4*sb-1) * additional_z0.at(tn).at(2);
-	v += 32*sa*(4*sa-1)*sb*sc * additional_z0.at(tn).at(3);
-	v += 4*sa*(4*sa-1)*sc*(4*sc-1) * additional_z0.at(tn).at(4);
-	v += 16*sb*(4*sb-1)*(2*sb-1)*sa/3 * additional_z0.at(tn).at(5);
-    v += 32*sb*(4*sb-1)*sc*sa * additional_z0.at(tn).at(6);
-    v += 32*sc*(4*sc-1)*sa*sb * additional_z0.at(tn).at(7);
-    v += 16*sc*(4*sc-1)*(2*sc-1)*sa/3 * additional_z0.at(tn).at(8);
-    v += 16*sb*(4*sb-1)*(2*sb-1)*sc/3 * additional_z0.at(tn).at(9);
-    v += 4*sb*(4*sb-1)*sc*(4*sc-1) * additional_z0.at(tn).at(10);
-    v += 16*sc*(4*sc-1)*(2*sc-1)*sb/3 * additional_z0.at(tn).at(11);
+	v += 16*sa*(4*sa-1)*(2*sa-1)*sb/3 * values0.at(mesh.get_triangle_point_num(tn, 3));
+	v += 4*sa*(4*sa-1)*sb*(4*sb-1)    * values0.at(mesh.get_triangle_point_num(tn, 4));
+	v += 16*sb*(4*sb-1)*(2*sb-1)*sa/3 * values0.at(mesh.get_triangle_point_num(tn, 5));
+	v += 16*sb*(4*sb-1)*(2*sb-1)*sc/3 * values0.at(mesh.get_triangle_point_num(tn, 6));
+	v += 4*sb*(4*sb-1)*sc*(4*sc-1)    * values0.at(mesh.get_triangle_point_num(tn, 7));
+    v += 16*sc*(4*sc-1)*(2*sc-1)*sb/3 * values0.at(mesh.get_triangle_point_num(tn, 8));
+    v += 16*sc*(4*sc-1)*(2*sc-1)*sa/3 * values0.at(mesh.get_triangle_point_num(tn, 9));
+    v += 4*sa*(4*sa-1)*sc*(4*sc-1)    * values0.at(mesh.get_triangle_point_num(tn, 10));
+	v += 16*sa*(4*sa-1)*(2*sa-1)*sc/3 * values0.at(mesh.get_triangle_point_num(tn, 11));
+	v += 32*sa*(4*sa-1)*sb*sc         * values0.at(mesh.get_triangle_point_num(tn, 12));
+    v += 32*sb*(4*sb-1)*sc*sa         * values0.at(mesh.get_triangle_point_num(tn, 13));
+    v += 32*sc*(4*sc-1)*sa*sb         * values0.at(mesh.get_triangle_point_num(tn, 14));
 	return v;
 }
 
