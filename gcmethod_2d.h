@@ -42,6 +42,9 @@ class gcmethod_2d
 	double tau;
 	int number_of_steps;
 	int cur_step;
+    bool use_precalculations;
+    bool save_only_main_points;
+    int saving_frequency;
 
 	double eps_xy = 1e-10;
 	double eps_z = 1e-10;
@@ -49,10 +52,8 @@ class gcmethod_2d
 	std::vector<double> values0;
 	std::vector<double> values1;
 
-	std::vector<std::vector<double> > additional_z0;
-	std::vector<std::vector<double> > additional_z1;
-
 	std::vector<std::vector<double> > weights;
+	std::vector<int> elements_of_points;
 
 public:
     int N;
@@ -80,8 +81,12 @@ private:
     double approximate_quadratic_special(vector2d r, int tn);
     void aproximate_quadratic_special_small(std::vector<double> & zs,  int tn, vector2d p1, vector2d p2, vector2d p3, double z1, double z2, double z3);
     double approximate_any(vector2d p, int tn);
+    void fast_step();
+    void calculate_weights(vector2d step);
+    void calculate_weights_of_point(int pn, vector2d r, int tn);
     bool min_max_check(double z, int tn);
     double exact_solution(vector2d p, double t);
+
 
 	void step();
 };
@@ -100,47 +105,55 @@ void gcmethod_2d::save_to_vtk(std::string name)
 	vtk_file << "DATASET POLYDATA\nPOINTS " << mesh.get_number_of_points() << " float\n";
 	for ( int i = 0; i < mesh.get_number_of_points(); i++ )
 		vtk_file << mesh.get_point(i).x << " " << mesh.get_point(i).y << " "  << 0.0 << "\n";
-	vtk_file << "\nPOLYGONS " << mesh.get_number_of_triangles()*N*N << " " << mesh.get_number_of_triangles()*N*N*4 << "\n";
-	for (int i = 0; i < mesh.get_number_of_triangles(); i++)
-	{
-		//vtk_file << 3 << " " << mesh.get_triangle_point_num(i,0) << " " << mesh.get_triangle_point_num(i,1) << " " << mesh.get_triangle_point_num(i,2) << "\n";
-        if (N == 1)
+    if ( !save_only_main_points )
+    {
+        vtk_file << "\nPOLYGONS " << mesh.get_number_of_triangles()*N*N << " " << mesh.get_number_of_triangles()*N*N*4 << "\n";
+        for (int i = 0; i < mesh.get_number_of_triangles(); i++)
+        {
+            if (N == 1)
+                vtk_file << 3 << " " << mesh.get_triangle_point_num(i,0) << " " << mesh.get_triangle_point_num(i,1) << " " << mesh.get_triangle_point_num(i,2) << "\n";
+            if (N == 2) {
+                vtk_file << 3 << " " << mesh.get_triangle_point_num(i,0) << " " << mesh.get_triangle_point_num(i,3) << " " << mesh.get_triangle_point_num(i,5) << "\n";
+                vtk_file << 3 << " " << mesh.get_triangle_point_num(i,3) << " " << mesh.get_triangle_point_num(i,1) << " " << mesh.get_triangle_point_num(i,4) << "\n";
+                vtk_file << 3 << " " << mesh.get_triangle_point_num(i,4) << " " << mesh.get_triangle_point_num(i,2) << " " << mesh.get_triangle_point_num(i,5) << "\n";
+                vtk_file << 3 << " " << mesh.get_triangle_point_num(i,3) << " " << mesh.get_triangle_point_num(i,4) << " " << mesh.get_triangle_point_num(i,5) << "\n";
+            }
+            if (N == 3) {
+                vtk_file << 3 << " " << mesh.get_triangle_point_num(i,0) << " " << mesh.get_triangle_point_num(i,3) << " " << mesh.get_triangle_point_num(i,8) << "\n";
+                vtk_file << 3 << " " << mesh.get_triangle_point_num(i,3) << " " << mesh.get_triangle_point_num(i,4) << " " << mesh.get_triangle_point_num(i,9) << "\n";
+                vtk_file << 3 << " " << mesh.get_triangle_point_num(i,4) << " " << mesh.get_triangle_point_num(i,1) << " " << mesh.get_triangle_point_num(i,5) << "\n";
+                vtk_file << 3 << " " << mesh.get_triangle_point_num(i,5) << " " << mesh.get_triangle_point_num(i,6) << " " << mesh.get_triangle_point_num(i,9) << "\n";
+                vtk_file << 3 << " " << mesh.get_triangle_point_num(i,6) << " " << mesh.get_triangle_point_num(i,2) << " " << mesh.get_triangle_point_num(i,7) << "\n";
+                vtk_file << 3 << " " << mesh.get_triangle_point_num(i,7) << " " << mesh.get_triangle_point_num(i,8) << " " << mesh.get_triangle_point_num(i,9) << "\n";
+                vtk_file << 3 << " " << mesh.get_triangle_point_num(i,3) << " " << mesh.get_triangle_point_num(i,9) << " " << mesh.get_triangle_point_num(i,8) << "\n";
+                vtk_file << 3 << " " << mesh.get_triangle_point_num(i,4) << " " << mesh.get_triangle_point_num(i,5) << " " << mesh.get_triangle_point_num(i,9) << "\n";
+                vtk_file << 3 << " " << mesh.get_triangle_point_num(i,6) << " " << mesh.get_triangle_point_num(i,7) << " " << mesh.get_triangle_point_num(i,9) << "\n";
+            }
+            if (N == 4) {
+                vtk_file << 3 << " " << mesh.get_triangle_point_num(i,0) << " " << mesh.get_triangle_point_num(i,3) << " " << mesh.get_triangle_point_num(i,11) << "\n";
+                vtk_file << 3 << " " << mesh.get_triangle_point_num(i,3) << " " << mesh.get_triangle_point_num(i,4) << " " << mesh.get_triangle_point_num(i,12) << "\n";
+                vtk_file << 3 << " " << mesh.get_triangle_point_num(i,4) << " " << mesh.get_triangle_point_num(i,5) << " " << mesh.get_triangle_point_num(i,13) << "\n";
+                vtk_file << 3 << " " << mesh.get_triangle_point_num(i,5) << " " << mesh.get_triangle_point_num(i,1) << " " << mesh.get_triangle_point_num(i,6) << "\n";
+                vtk_file << 3 << " " << mesh.get_triangle_point_num(i,6) << " " << mesh.get_triangle_point_num(i,7) << " " << mesh.get_triangle_point_num(i,13) << "\n";
+                vtk_file << 3 << " " << mesh.get_triangle_point_num(i,7) << " " << mesh.get_triangle_point_num(i,8) << " " << mesh.get_triangle_point_num(i,14) << "\n";
+                vtk_file << 3 << " " << mesh.get_triangle_point_num(i,8) << " " << mesh.get_triangle_point_num(i,2) << " " << mesh.get_triangle_point_num(i,9) << "\n";
+                vtk_file << 3 << " " << mesh.get_triangle_point_num(i,9) << " " << mesh.get_triangle_point_num(i,10) << " " << mesh.get_triangle_point_num(i,14) << "\n";
+                vtk_file << 3 << " " << mesh.get_triangle_point_num(i,10) << " " << mesh.get_triangle_point_num(i,11) << " " << mesh.get_triangle_point_num(i,12) << "\n";
+                vtk_file << 3 << " " << mesh.get_triangle_point_num(i,3) << " " << mesh.get_triangle_point_num(i,12) << " " << mesh.get_triangle_point_num(i,11) << "\n";
+                vtk_file << 3 << " " << mesh.get_triangle_point_num(i,3) << " " << mesh.get_triangle_point_num(i,13) << " " << mesh.get_triangle_point_num(i,12) << "\n";
+                vtk_file << 3 << " " << mesh.get_triangle_point_num(i,5) << " " << mesh.get_triangle_point_num(i,6) << " " << mesh.get_triangle_point_num(i,13) << "\n";
+                vtk_file << 3 << " " << mesh.get_triangle_point_num(i,7) << " " << mesh.get_triangle_point_num(i,14) << " " << mesh.get_triangle_point_num(i,13) << "\n";
+                vtk_file << 3 << " " << mesh.get_triangle_point_num(i,8) << " " << mesh.get_triangle_point_num(i,9) << " " << mesh.get_triangle_point_num(i,14) << "\n";
+                vtk_file << 3 << " " << mesh.get_triangle_point_num(i,10) << " " << mesh.get_triangle_point_num(i,12) << " " << mesh.get_triangle_point_num(i,14) << "\n";
+                vtk_file << 3 << " " << mesh.get_triangle_point_num(i,12) << " " << mesh.get_triangle_point_num(i,13) << " " << mesh.get_triangle_point_num(i,14) << "\n";
+            }
+        }
+    }
+    else
+    {
+        vtk_file << "\nPOLYGONS " << mesh.get_number_of_triangles() << " " << mesh.get_number_of_triangles()*4 << "\n";
+        for (int i = 0; i < mesh.get_number_of_triangles(); i++)
             vtk_file << 3 << " " << mesh.get_triangle_point_num(i,0) << " " << mesh.get_triangle_point_num(i,1) << " " << mesh.get_triangle_point_num(i,2) << "\n";
-        if (N == 2) {
-            vtk_file << 3 << " " << mesh.get_triangle_point_num(i,0) << " " << mesh.get_triangle_point_num(i,3) << " " << mesh.get_triangle_point_num(i,5) << "\n";
-            vtk_file << 3 << " " << mesh.get_triangle_point_num(i,3) << " " << mesh.get_triangle_point_num(i,1) << " " << mesh.get_triangle_point_num(i,4) << "\n";
-            vtk_file << 3 << " " << mesh.get_triangle_point_num(i,4) << " " << mesh.get_triangle_point_num(i,2) << " " << mesh.get_triangle_point_num(i,5) << "\n";
-            vtk_file << 3 << " " << mesh.get_triangle_point_num(i,3) << " " << mesh.get_triangle_point_num(i,4) << " " << mesh.get_triangle_point_num(i,5) << "\n";
-        }
-        if (N == 3) {
-            vtk_file << 3 << " " << mesh.get_triangle_point_num(i,0) << " " << mesh.get_triangle_point_num(i,3) << " " << mesh.get_triangle_point_num(i,8) << "\n";
-            vtk_file << 3 << " " << mesh.get_triangle_point_num(i,3) << " " << mesh.get_triangle_point_num(i,4) << " " << mesh.get_triangle_point_num(i,9) << "\n";
-            vtk_file << 3 << " " << mesh.get_triangle_point_num(i,4) << " " << mesh.get_triangle_point_num(i,1) << " " << mesh.get_triangle_point_num(i,5) << "\n";
-            vtk_file << 3 << " " << mesh.get_triangle_point_num(i,5) << " " << mesh.get_triangle_point_num(i,6) << " " << mesh.get_triangle_point_num(i,9) << "\n";
-            vtk_file << 3 << " " << mesh.get_triangle_point_num(i,6) << " " << mesh.get_triangle_point_num(i,2) << " " << mesh.get_triangle_point_num(i,7) << "\n";
-            vtk_file << 3 << " " << mesh.get_triangle_point_num(i,7) << " " << mesh.get_triangle_point_num(i,8) << " " << mesh.get_triangle_point_num(i,9) << "\n";
-            vtk_file << 3 << " " << mesh.get_triangle_point_num(i,3) << " " << mesh.get_triangle_point_num(i,9) << " " << mesh.get_triangle_point_num(i,8) << "\n";
-            vtk_file << 3 << " " << mesh.get_triangle_point_num(i,4) << " " << mesh.get_triangle_point_num(i,5) << " " << mesh.get_triangle_point_num(i,9) << "\n";
-            vtk_file << 3 << " " << mesh.get_triangle_point_num(i,6) << " " << mesh.get_triangle_point_num(i,7) << " " << mesh.get_triangle_point_num(i,9) << "\n";
-        }
-        if (N == 4) {
-            vtk_file << 3 << " " << mesh.get_triangle_point_num(i,0) << " " << mesh.get_triangle_point_num(i,3) << " " << mesh.get_triangle_point_num(i,11) << "\n";
-            vtk_file << 3 << " " << mesh.get_triangle_point_num(i,3) << " " << mesh.get_triangle_point_num(i,4) << " " << mesh.get_triangle_point_num(i,12) << "\n";
-            vtk_file << 3 << " " << mesh.get_triangle_point_num(i,4) << " " << mesh.get_triangle_point_num(i,5) << " " << mesh.get_triangle_point_num(i,13) << "\n";
-            vtk_file << 3 << " " << mesh.get_triangle_point_num(i,5) << " " << mesh.get_triangle_point_num(i,1) << " " << mesh.get_triangle_point_num(i,6) << "\n";
-            vtk_file << 3 << " " << mesh.get_triangle_point_num(i,6) << " " << mesh.get_triangle_point_num(i,7) << " " << mesh.get_triangle_point_num(i,13) << "\n";
-            vtk_file << 3 << " " << mesh.get_triangle_point_num(i,7) << " " << mesh.get_triangle_point_num(i,8) << " " << mesh.get_triangle_point_num(i,14) << "\n";
-            vtk_file << 3 << " " << mesh.get_triangle_point_num(i,8) << " " << mesh.get_triangle_point_num(i,2) << " " << mesh.get_triangle_point_num(i,9) << "\n";
-            vtk_file << 3 << " " << mesh.get_triangle_point_num(i,9) << " " << mesh.get_triangle_point_num(i,10) << " " << mesh.get_triangle_point_num(i,14) << "\n";
-            vtk_file << 3 << " " << mesh.get_triangle_point_num(i,10) << " " << mesh.get_triangle_point_num(i,11) << " " << mesh.get_triangle_point_num(i,12) << "\n";
-            vtk_file << 3 << " " << mesh.get_triangle_point_num(i,3) << " " << mesh.get_triangle_point_num(i,12) << " " << mesh.get_triangle_point_num(i,11) << "\n";
-            vtk_file << 3 << " " << mesh.get_triangle_point_num(i,3) << " " << mesh.get_triangle_point_num(i,13) << " " << mesh.get_triangle_point_num(i,12) << "\n";
-            vtk_file << 3 << " " << mesh.get_triangle_point_num(i,5) << " " << mesh.get_triangle_point_num(i,6) << " " << mesh.get_triangle_point_num(i,13) << "\n";
-            vtk_file << 3 << " " << mesh.get_triangle_point_num(i,7) << " " << mesh.get_triangle_point_num(i,14) << " " << mesh.get_triangle_point_num(i,13) << "\n";
-            vtk_file << 3 << " " << mesh.get_triangle_point_num(i,8) << " " << mesh.get_triangle_point_num(i,9) << " " << mesh.get_triangle_point_num(i,14) << "\n";
-            vtk_file << 3 << " " << mesh.get_triangle_point_num(i,10) << " " << mesh.get_triangle_point_num(i,12) << " " << mesh.get_triangle_point_num(i,14) << "\n";
-            vtk_file << 3 << " " << mesh.get_triangle_point_num(i,12) << " " << mesh.get_triangle_point_num(i,13) << " " << mesh.get_triangle_point_num(i,14) << "\n";
-        }
     }
 	vtk_file << "\nPOINT_DATA " << mesh.get_number_of_points() << "\n";;
 	vtk_file << "SCALARS z FLOAT\n";
@@ -172,8 +185,6 @@ void gcmethod_2d::step_any(vector2d step)
 	for ( int i = 0; i < mesh.get_number_of_points(); i++ )
 	{
 		p = mesh.get_point(i) + step;
-		if ((p.x-0)*(p.x-0) + p.y*p.y < 1)
-            int a = 0;
 		if (!mesh.is_inside(p)) mesh.make_inside_vector(p);
         for ( int n : mesh.triangles.at(i) )
             if (mesh.is_inside(p, n))
@@ -181,6 +192,92 @@ void gcmethod_2d::step_any(vector2d step)
                 values1.at(i) = approximate(p, n);
                 break;
             }
+	}
+}
+
+void gcmethod_2d::fast_step()
+{
+    for ( int i = 0; i < mesh.get_number_of_points(); i++ )
+    {
+        values1[i] = 0;
+        for ( int j = 0; j < (N+1)*(N+2)/2; j++ )
+            values1[i] += weights[i][j] * values0[mesh.get_triangle_point_num(elements_of_points[i], j)];
+    }
+    values0.swap(values1);
+}
+
+void gcmethod_2d::calculate_weights(vector2d step)
+{
+	vector2d p;
+	for ( int i = 0; i < mesh.get_number_of_points(); i++ )
+	{
+		p = mesh.get_point(i) + step;
+		if (!mesh.is_inside(p)) mesh.make_inside_vector(p);
+        for ( int n : mesh.triangles.at(i) )
+            if (mesh.is_inside(p, n))
+            {
+                elements_of_points.at(i) = n;
+                calculate_weights_of_point(i, p, n);
+                break;
+            }
+	}
+}
+void gcmethod_2d::calculate_weights_of_point(int pn, vector2d r, int tn)
+{
+    vector2d ra = mesh.get_triangle_point(tn, 0);
+	vector2d rb = mesh.get_triangle_point(tn, 1);
+	vector2d rc = mesh.get_triangle_point(tn, 2);
+	double sa = Vec(rc - rb, r - rb)/2;
+	double sb = Vec(ra - rc, r - rc)/2;
+	double sc = Vec(rb - ra, r - ra)/2;
+	double s = sa + sb + sc;
+	sa /= s; sb /= s; sc /= s;
+	double v = 0;
+	if (N==1)
+	{
+        weights.at(pn).at(0) = sa;
+        weights.at(pn).at(1) = sb;
+        weights.at(pn).at(2) = sc;
+	}
+	else if (N==2)
+	{
+        weights.at(pn).at(0) = sa*(2*sa-1);
+        weights.at(pn).at(1) = sb*(2*sb-1);
+        weights.at(pn).at(2) = sc*(2*sc-1);
+        weights.at(pn).at(3) = 4*sa*sb;
+        weights.at(pn).at(4) = 4*sb*sc;
+        weights.at(pn).at(5) = 4*sc*sa;
+	}
+	else if (N==3)
+	{
+        weights.at(pn).at(0) = sa*(3*sa-1)*(3*sa-2)/2;
+        weights.at(pn).at(1) = sb*(3*sb-1)*(3*sb-2)/2;
+        weights.at(pn).at(2) = sc*(3*sc-1)*(3*sc-2)/2;
+        weights.at(pn).at(3) = 9*sa*(3*sa-1)*sb/2;
+        weights.at(pn).at(4) = 9*sb*(3*sb-1)*sa/2;
+        weights.at(pn).at(5) = 9*sb*(3*sb-1)*sc/2;
+        weights.at(pn).at(6) = 9*sc*(3*sc-1)*sb/2;
+        weights.at(pn).at(7) = 9*sc*(3*sc-1)*sa/2;
+        weights.at(pn).at(8) = 9*sa*(3*sa-1)*sc/2;
+        weights.at(pn).at(9) = 27*sa*sb*sc;
+	}
+	else if (N==4)
+	{
+        weights.at(pn).at(0) = sa*(4*sa-1)*(2*sa-1)*(4*sa-3)/3;
+        weights.at(pn).at(1) = sb*(4*sb-1)*(2*sb-1)*(4*sb-3)/3;
+        weights.at(pn).at(2) = sc*(4*sc-1)*(2*sc-1)*(4*sc-3)/3;
+        weights.at(pn).at(3) = 16*sa*(4*sa-1)*(2*sa-1)*sb/3;
+        weights.at(pn).at(4) = 4*sa*(4*sa-1)*sb*(4*sb-1);
+        weights.at(pn).at(5) = 16*sb*(4*sb-1)*(2*sb-1)*sa/3;
+        weights.at(pn).at(6) = 16*sb*(4*sb-1)*(2*sb-1)*sc/3;
+        weights.at(pn).at(7) = 4*sb*(4*sb-1)*sc*(4*sc-1);
+        weights.at(pn).at(8) = 16*sc*(4*sc-1)*(2*sc-1)*sb/3;
+        weights.at(pn).at(9) = 16*sc*(4*sc-1)*(2*sc-1)*sa/3;
+        weights.at(pn).at(10) = 4*sa*(4*sa-1)*sc*(4*sc-1);
+        weights.at(pn).at(11) = 16*sa*(4*sa-1)*(2*sa-1)*sc/3;
+        weights.at(pn).at(12) = 32*sa*(4*sa-1)*sb*sc;
+        weights.at(pn).at(13) = 32*sb*(4*sb-1)*sc*sa;
+        weights.at(pn).at(14) = 32*sc*(4*sc-1)*sa*sb;
 	}
 }
 
@@ -199,41 +296,32 @@ double gcmethod_2d::approximate(vector2d p, int tn)
     double result;
 	switch (N)
 	{
-		case 1: result = prepare_approximate_linear(p, tn); break;
+		case 1: result = approximate_linear(p, tn); break;
 		case 2: result = approximate_quadratic(p, tn); break;
 		case 3: result = approximate_cubic(p, tn); break;
 		case 4: result = approximate_quartic(p, tn); break;
 		default: break;
 	}
 	if (is_monotonic && min_max_check(result, tn))
-        return prepare_approximate_linear(p, tn);
+        return approximate_linear(p, tn);
     else
         return result;
 }
 
-
-double gcmethod_2d::prepare_approximate_linear(vector2d p, int tn)
+double gcmethod_2d::approximate_linear(vector2d r, int tn)
 {
-	double x1 = mesh.get_triangle_point(tn, 0).x; double y1 = mesh.get_triangle_point(tn, 0).y; double z1 = values0.at(mesh.get_triangle_point_num(tn, 0));
-	double x2 = mesh.get_triangle_point(tn, 1).x; double y2 = mesh.get_triangle_point(tn, 1).y; double z2 = values0.at(mesh.get_triangle_point_num(tn, 1));
-	double x3 = mesh.get_triangle_point(tn, 2).x; double y3 = mesh.get_triangle_point(tn, 2).y; double z3 = values0.at(mesh.get_triangle_point_num(tn, 2));
-
-	//double vx = (y3-y1)*(z3-z2) - (z3-z1)*(y3-y2);
-	//double vy = (z3-z1)*(x3-x2) - (x3-x1)*(z3-z2);
-	double vz = (x3-x1)*(y3-y2) - (y3-y1)*(x3-x2);
-
-    //weights.at(tn).at(0) = ((x1-p.x)*(y3-y2) + (y1-p.y)*(x2-x3) + vz) / vz;
-    //weights.at(tn).at(1) = ((x1-p.x)*(y1-y3) + (y1-p.y)*(x3-x1)) / vz;
-    //weights.at(tn).at(2) = ((x1-p.x)*(y2-y1) + (y1-p.y)*(x1-x2)) / vz;
-    return ((x1-p.x)*(y3-y2) + (y1-p.y)*(x2-x3) + vz) / vz*z1 + ((x1-p.x)*(y1-y3) + (y1-p.y)*(x3-x1)) / vz*z2 + ((x1-p.x)*(y2-y1) + (y1-p.y)*(x1-x2)) / vz*z3;
-}
-
-double gcmethod_2d::approximate_linear(vector2d p, int tn)
-{
-	double z1 = values0.at(mesh.get_triangle_point_num(tn, 0));
-	double z2 = values0.at(mesh.get_triangle_point_num(tn, 1));
-	double z3 = values0.at(mesh.get_triangle_point_num(tn, 2));
-	return weights.at(tn).at(0)*z1 + weights.at(tn).at(1)*z2 + weights.at(tn).at(2)*z3;
+	vector2d ra = mesh.get_triangle_point(tn, 0);
+	vector2d rb = mesh.get_triangle_point(tn, 1);
+	vector2d rc = mesh.get_triangle_point(tn, 2);
+	double sa = Vec(rc - rb, r - rb)/2;
+	double sb = Vec(ra - rc, r - rc)/2;
+	double sc = Vec(rb - ra, r - ra)/2;
+	double s = sa + sb + sc;
+	sa /= s; sb /= s; sc /= s;
+	double v = 0;
+	v += sa * values0.at(mesh.get_triangle_point_num(tn, 0));
+	v += sb * values0.at(mesh.get_triangle_point_num(tn, 1));
+	v += sc * values0.at(mesh.get_triangle_point_num(tn, 2));
 }
 
 double gcmethod_2d::approximate_quadratic(vector2d r, int tn)
@@ -253,8 +341,6 @@ double gcmethod_2d::approximate_quadratic(vector2d r, int tn)
 	v += 4*sa*sb * values0.at(mesh.get_triangle_point_num(tn, 3));
 	v += 4*sb*sc * values0.at(mesh.get_triangle_point_num(tn, 4));
 	v += 4*sc*sa * values0.at(mesh.get_triangle_point_num(tn, 5));//std::cout << v << "\n";
-    if (r.x*r.x + r.y*r.y < 6 && v < 0.5)
-        int b = 1;
 	return v;
 }
 
@@ -349,36 +435,42 @@ double gcmethod_2d::approximate_quadratic_special(vector2d r, int tn)
         p1 = ra;
         p2 = ra + (rb-ra)/2;
         p3 = ra + (rc-ra)/2;
-        aproximate_quadratic_special_small(z, tn, p1, p2, p3, values0.at(mesh.get_triangle_point_num(tn, 0)), additional_z0.at(tn).at(0), additional_z0.at(tn).at(1));
+        aproximate_quadratic_special_small(z, tn, p1, p2, p3, values0.at(mesh.elements.at(tn).at(0)),
+                                                              values0.at(mesh.elements.at(tn).at(3)),
+                                                              values0.at(mesh.elements.at(tn).at(5)));
     }
     else if (sb >= 0.5)
     {
         p1 = rb;
         p2 = rb + (rc-rb)/2;
         p3 = rb + (ra-rb)/2;
-        aproximate_quadratic_special_small(z, tn, p1, p2, p3, values0.at(mesh.get_triangle_point_num(tn, 1)), additional_z0.at(tn).at(2), additional_z0.at(tn).at(0));
+        aproximate_quadratic_special_small(z, tn, p1, p2, p3, values0.at(mesh.elements.at(tn).at(1)),
+                                                              values0.at(mesh.elements.at(tn).at(4)),
+                                                              values0.at(mesh.elements.at(tn).at(3)));
     }
     else if (sc >= 0.5)
     {
         p1 = rc;
         p2 = rc + (ra-rc)/2;
         p3 = rc + (rb-rc)/2;
-        aproximate_quadratic_special_small(z, tn, p1, p2, p3, values0.at(mesh.get_triangle_point_num(tn, 2)), additional_z0.at(tn).at(1), additional_z0.at(tn).at(2));
+        aproximate_quadratic_special_small(z, tn, p1, p2, p3, values0.at(mesh.elements.at(tn).at(2)),
+                                                              values0.at(mesh.elements.at(tn).at(5)),
+                                                              values0.at(mesh.elements.at(tn).at(4)));
     }
     else
     {
         p1 = (ra+rb)/2;
         p2 = (rb+rc)/2;
         p3 = (rc+ra)/2;
-        aproximate_quadratic_special_small(z, tn, p1, p2, p3, additional_z0.at(tn).at(0), additional_z0.at(tn).at(2), additional_z0.at(tn).at(1));
+        aproximate_quadratic_special_small(z, tn, p1, p2, p3, values0.at(mesh.elements.at(tn).at(3)),
+                                                              values0.at(mesh.elements.at(tn).at(4)),
+                                                              values0.at(mesh.elements.at(tn).at(5)));
     }
 	double spa = Vec(p3 - p2, r - p2)/2;
 	double spb = Vec(p1 - p3, r - p3)/2;
 	double spc = Vec(p2 - p1, r - p1)/2;
 	double sp = spa + spb + spc;
 	spa /= sp; spb /= sp; spc /= sp;
-    //if (r.x*r.x + r.y*r.y < 1)
-    //    std::cout << z.at(0) << " " << z.at(1) << " " << z.at(2) << " " << z.at(3) << " " << z.at(4) << " " << z.at(5) << "\n";
 	double v = 0;
 	v += spa*(2*spa-1) * z.at(0);
 	v += spb*(2*spb-1) * z.at(1);
@@ -392,12 +484,11 @@ double gcmethod_2d::approximate_quadratic_special(vector2d r, int tn)
 void gcmethod_2d::step()
 {
 	// time step for the equation u_t + lx*u_x + ly*u_y = 0;
+
 	step_any(vector2d(-tau * lambda_x, 0));
 	values1.swap(values0);
-	additional_z1.swap(additional_z0);
-	step_any(vector2d(0, -tau * lambda_y));
-	values1.swap(values0);
-	additional_z1.swap(additional_z0);
+	//step_any(vector2d(0, -tau * lambda_y));
+	//values1.swap(values0);
 	cur_step++;
 }
 
@@ -420,13 +511,17 @@ void DrawProgressBar(int len, double percent) {
 void gcmethod_2d::calculate()
 {
 	init();
+	if ( use_precalculations )
+        calculate_weights(vector2d(-tau * lambda_x, 0));
 	for (int i = 0; i < number_of_steps; i++)
 	{
-        // saving every step
         DrawProgressBar(40, i*1.0/number_of_steps);
-		save_to_vtk("out/out_" + std::to_string(i) + ".vtk");
-		step();
-
+        if ( i % saving_frequency == 0 )
+            save_to_vtk("out/out_" + std::to_string(i) + ".vtk");
+		if ( use_precalculations )
+            fast_step();
+        else
+            step();
 	}
 	DrawProgressBar(40, 1.0);
 	save_to_vtk("out/out_" + std::to_string(number_of_steps) + ".vtk");
@@ -438,8 +533,11 @@ void gcmethod_2d::init()
 	values1.resize(mesh.get_number_of_points());
 	for ( int i = 0; i < mesh.get_number_of_points(); i++ )
 		values0.at(i) = initial_conditions(mesh.get_point(i));
-    weights.resize(mesh.get_number_of_points(), std::vector<double>((N+1)*(N+2)/2));
-    //triangles_of_points.resize(mesh.get_number_of_points());
+    if ( use_precalculations )
+    {
+        weights.resize(mesh.get_number_of_points(), std::vector<double>((N+1)*(N+2)/2));
+        elements_of_points.resize(mesh.get_number_of_points());
+    }
 }
 
 
@@ -449,7 +547,6 @@ double gcmethod_2d::exact_solution( vector2d p, double t )
     vector2d r = p - t * vector2d(lambda_x, lambda_y);
     while (!mesh.is_inside(r))
         mesh.make_inside_vector(r);
-
     return initial_conditions(r);
 }
 
@@ -524,6 +621,11 @@ void gcmethod_2d::read_from_file(std::string path)
     N = pt.get<int>("Method.N");
     std::string is_monotonic_str = pt.get<std::string>("Method.is_monotonic");
     is_monotonic = (is_monotonic_str == "true" || is_monotonic_str == "TRUE" || is_monotonic_str == "True");
+    std::string use_precalculations_str = pt.get<std::string>("Method.use_precalculations");
+    use_precalculations = (use_precalculations_str == "true" || use_precalculations_str == "TRUE" || use_precalculations_str == "True");
+    std::string save_only_main_points_str = pt.get<std::string>("Method.save_only_main_points");
+    save_only_main_points = (save_only_main_points_str == "true" || save_only_main_points_str == "TRUE" || save_only_main_points_str == "True");
+    saving_frequency = pt.get<int>("Method.saving_frequency");
 }
 
 
