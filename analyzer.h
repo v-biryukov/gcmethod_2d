@@ -26,7 +26,7 @@ public:
             {
                 for ( bool is_monotonic : {true, false} )
                 {
-                    gcmethod_2d test = gcmethod_2d("gcmethod_2d.ini", m);
+                    gcmethod_2d test = gcmethod_2d("gcmethod_2d.ini", &m);
                     std::cout << "\nCalculating task with h = " << m.get_h() << ", N = " << N << ", is_monotonic = " << is_monotonic << "\n";
                     test.N = N;
                     test.is_monotonic = is_monotonic;

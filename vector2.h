@@ -1,6 +1,9 @@
+#pragma once
 #include <math.h>
+#include "tensor2d.h"
 
 
+class tensor2d;
 class vector2d
 {
     public:
@@ -124,7 +127,9 @@ class vector2d
         {
             return atan2(this->y, this->x);
         }
+        tensor2d operator ^(const vector2d& v) const;
 };
+
 
 
 class point2d : public vector2d
