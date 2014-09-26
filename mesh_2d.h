@@ -175,6 +175,17 @@ void mesh_2d::create_unstructured_mesh()
 
     triangulate(s, &in, &mesh, (struct triangulateio *) NULL);
     save_to_class_data(&mesh);
+    free(in.pointlist);
+    free(in.segmentlist);
+
+    free(mesh.pointlist);
+    free(mesh.segmentlist);
+    free(mesh.edgelist);
+    free(mesh.trianglelist);
+    free(mesh.segmentmarkerlist);
+    free(mesh.edgemarkerlist);
+    free(mesh.pointmarkerlist);
+    free(mesh.triangleattributelist);
     std::cout << "Mesh has been generated successfully." << std::endl;
 }
 
@@ -354,6 +365,10 @@ void mesh_2d::create_structured_mesh()
             }
         }
     save_to_class_data(&mesh);
+    free(mesh.pointlist);
+    free(mesh.segmentlist);
+    free(mesh.edgelist);
+    free(mesh.trianglelist);
     std::cout << "Mesh has been generated successfully." << std::endl;
 }
 

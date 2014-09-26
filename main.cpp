@@ -9,7 +9,7 @@
 int main()
 {
 
-    mesh_2d m = mesh_2d("gcmethod_2d.ini");
+    mesh_2d m = mesh_2d("linear_elastisity.ini");
     m.create_mesh();
     /*
     gcmethod_2d g = gcmethod_2d("gcmethod_2d.ini", &m);
