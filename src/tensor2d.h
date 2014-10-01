@@ -1,7 +1,6 @@
 #pragma once
 #include <math.h>
-#include "vector2.h"
-
+#include "vector2d.h"
 
 class tensor2d
 {
@@ -111,7 +110,7 @@ class tensor2d
 
 };
 
-tensor2d vector2d::operator ^(const vector2d& v) const
+inline tensor2d vector2d::operator ^(const vector2d& v) const
 {
     return (tensor2d(x * v.x, x * v.y, y * v.x, y * v.y));
 }

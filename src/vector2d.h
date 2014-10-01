@@ -1,6 +1,5 @@
 #pragma once
 #include <math.h>
-#include "tensor2d.h"
 
 
 class tensor2d;

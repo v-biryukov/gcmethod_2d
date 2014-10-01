@@ -1,5 +1,6 @@
 ///////////////////////////////////////////////////////////
 //////
+//////	file: convection_equation_solver.cpp
 //////  class for solving convection equation in 2d using
 //////  grid-characteristic method.
 //////  author: Biryukov Vladimir, biryukov.vova@gmail.com
@@ -7,107 +8,7 @@
 //////
 ///////////////////////////////////////////////////////////
 
-
-#pragma once
-
-#ifdef SINGLE
-#define REAL float
-#else /* not SINGLE */
-#define REAL double
-#endif /* not SINGLE */
-
-#define ANSI_DECLARATORS
-
-extern "C"
-{
-#include "triangle.h"
-}
-
-#include <vector>
-#include <sstream>
-#include <fstream>
-#include <string>
-#include <boost/property_tree/ptree.hpp>
-#include <boost/property_tree/ini_parser.hpp>
-#include <iomanip>
-#include "vector2.h"
-#include "mesh_2d.h"
-
-struct convection_solver_gc_settings
-{
-    double lambda;
-    vector2d direction;
-    double tau;
-    int number_of_steps;
-    int N;
-	bool is_monotonic;
-    bool use_precalculations;
-    bool save_only_main_points;
-    int saving_frequency;
-};
-
-
-class gcmethod_2d
-{
-	std::string path;
-	double lambda;
-	vector2d direction;
-	double tau;
-	int number_of_steps;
-	int cur_step;
-    bool use_precalculations;
-    bool save_only_main_points;
-    int saving_frequency;
-
-	double eps_xy = 1e-10;
-	double eps_z = 1e-10;
-	mesh_2d * mesh;
-
-	std::vector<std::vector<double> > weights;
-	std::vector<int> elements_of_points;
-
-public:
-    int N;
-	bool is_monotonic;
-
-    std::vector<double> values0;
-	std::vector<double> values1;
-
-    gcmethod_2d();
-	gcmethod_2d(std::string path, mesh_2d * mesh_t);
-	gcmethod_2d(struct convection_solver_gc_settings c, mesh_2d * mesh_t);
-	void init();
-	void calculate();
-	void save_to_vtk(std::string name);
-	void analyze();
-    double L_inf();
-    double L(int n);
-    void set_number_of_steps(int n);
-private:
-	vector2d get_additional_point(int n, int k);
-	void read_from_file(std::string path);
-	double initial_conditions(double x, double y)
-        {if (x*x + y*y < 9) return 2.5; else return 0.0;};//return 2*exp(-(x*x+y*y)/5);};//{if (x*x + y*y < 5) return 2.5; else return 0.0;};//return 2.0/(1 + x*x + y*y);};
-	double initial_conditions(vector2d v) {return initial_conditions(v.x, v.y);};
-	void step_any(vector2d step);
-	double approximate(vector2d p, int tn);
-    double prepare_approximate_linear(vector2d p, int tn);
-	double approximate_linear(vector2d p, int tn);
-	double approximate_quadratic(vector2d p, int tn);
-    double approximate_cubic(vector2d p, int tn);
-    double approximate_quartic(vector2d r, int tn);
-    double approximate_quadratic_special(vector2d r, int tn);
-    void aproximate_quadratic_special_small(std::vector<double> & zs,  int tn, vector2d p1, vector2d p2, vector2d p3, double z1, double z2, double z3);
-    double approximate_any(vector2d p, int tn);
-    void fast_step();
-    void calculate_weights(vector2d step);
-    void calculate_weights_of_point(int pn, vector2d r, int tn);
-    bool min_max_check(double z, int tn);
-    double exact_solution(vector2d p, double t);
-
-
-	void step();
-};
+#include "convection_equation_solver.h"
 
 gcmethod_2d::gcmethod_2d()
 {
@@ -336,7 +237,7 @@ double gcmethod_2d::approximate(vector2d p, int tn)
 	switch (N)
 	{
 		case 1: result = approximate_linear(p, tn); break;
-		case 2: result = approximate_quadratic(p, tn); break;
+		case 2: result = approximate_quadratic_special(p, tn); break;
 		case 3: result = approximate_cubic(p, tn); break;
 		case 4: result = approximate_quartic(p, tn); break;
 		default: break;
@@ -523,30 +424,12 @@ double gcmethod_2d::approximate_quadratic_special(vector2d r, int tn)
 
 void gcmethod_2d::step()
 {
-	// time step for the equation u_t + lx*u_x + ly*u_y = 0;
-
 	step_any(-tau * lambda * direction);
 	values1.swap(values0);
-	//step_any(vector2d(0, -tau * lambda_y));
-	//values1.swap(values0);
 	cur_step++;
 }
 
 
-void DrawProgressBar(int len, double percent) {
-  std::cout << "\x1B[2K"; // Erase the entire current line.
-  std::cout << "\x1B[0E"; // Move to the beginning of the current line.
-  std::string progress;
-  for (int i = 0; i < len; ++i) {
-    if (i < static_cast<int>(len * percent)) {
-      progress += "=";
-    } else {
-      progress += " ";
-    }
-  }
-  std::cout << "[" << progress << "] " << (static_cast<int>(100 * percent)) << "%";
-  flush(std::cout); // Required.
-}
 
 void gcmethod_2d::calculate()
 {
@@ -554,7 +437,7 @@ void gcmethod_2d::calculate()
         calculate_weights(-tau * lambda * direction);
 	for (int i = 0; i < number_of_steps; i++)
 	{
-        DrawProgressBar(40, i*1.0/number_of_steps);
+        //DrawProgressBar(40, i*1.0/number_of_steps);
         if (saving_frequency > 0 && i % saving_frequency == 0 )
             save_to_vtk("out/out_" + std::to_string(i) + ".vtk");
 		if ( use_precalculations )
@@ -562,7 +445,7 @@ void gcmethod_2d::calculate()
         else
             step();
 	}
-	DrawProgressBar(40, 1.0);
+	//DrawProgressBar(40, 1.0);
 	if (saving_frequency > 0)
         save_to_vtk("out/out_" + std::to_string(number_of_steps) + ".vtk");
 }
@@ -671,7 +554,4 @@ void gcmethod_2d::read_from_file(std::string path)
     save_only_main_points = (save_only_main_points_str == "true" || save_only_main_points_str == "TRUE" || save_only_main_points_str == "True");
     saving_frequency = pt.get<int>("Method.saving_frequency");
 }
-
-
-
 

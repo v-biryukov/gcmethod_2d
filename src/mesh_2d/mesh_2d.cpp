@@ -1,64 +1,13 @@
 ///////////////////////////////////////////////////////////
 //////
+//////	file: mesh_2d.cpp
 //////  class for 2d meshes using triangle c library
 //////  author: Biryukov Vladimir, biryukov.vova@gmail.com
 //////  MIPT, 2014
 //////
 ///////////////////////////////////////////////////////////
 
-#pragma once
-
-class mesh_2d
-{
-	std::string path;
-	double size_x, size_y;
-	double h, max_ang;
-    bool is_structured;
-    int nx, ny;
-	//triangulateio mesh;
-    double eps = 1e-10;
-    int N;
-
-public:
-	mesh_2d(std::string path);
-	void create_mesh();
-	void create_structured_mesh();
-	void create_unstructured_mesh();
-
-
-	int get_number_of_points();
-	vector2d get_point(int n);
-	int get_opposite_point_num(int n);
-	int get_number_of_triangles();
-	int get_triangle_point_num(int n, int k);
-	vector2d get_triangle_point(int n, int k);
-
-    double get_size_x() {return size_x;};
-	double get_size_y() {return size_y;};
-    void set_h(double ht);
-    double get_h() {return h;};
-	bool get_is_structured() {return is_structured;};
-
-	bool is_inside(vector2d p);
-	bool is_inside(vector2d p, int n);
-	bool is_corner(int n);
-	void make_inside_vector(vector2d & p);
-
-	void save_to_class_data(triangulateio * mesh);
-
-	std::vector<vector2d> points;
-	std::vector<std::vector<int>> elements;
-	std::vector<std::vector<int> > neighbors;
-	std::vector<std::vector<int> > triangles;
-	std::vector<double> voronoi_areas;
-	int number_of_main_points;
-
-private:
-	void read_from_file(std::string path);
-	void find_neighbors(triangulateio * mesh);
-	void find_triangles(triangulateio * mesh);
-	void find_voronoi_areas();
-};
+#include "mesh_2d.h"
 
 mesh_2d::mesh_2d(std::string path)
 {
@@ -67,11 +16,12 @@ mesh_2d::mesh_2d(std::string path)
     ny = static_cast<int>(size_y/h);
 }
 
-void mesh_2d::set_h(double ht)
+void mesh_2d::change_h_and_refine(double ht)
 {
     h = ht;
     nx = static_cast<int>(size_x/h);
     ny = static_cast<int>(size_y/h);
+	create_mesh();
 }
 
 void mesh_2d::read_from_file(std::string path)
@@ -460,8 +410,8 @@ void mesh_2d::find_voronoi_areas()
 
         // In the next cycle we are looking for intersections of the lines
         // which are lying to the negative side of each line (or lie on line)
-        for ( int m = 0; m < coefs.size(); m++ )
-            for ( int n = m+1; n < coefs.size(); n++ )
+        for ( unsigned int m = 0; m < coefs.size(); m++ )
+            for ( unsigned int n = m+1; n < coefs.size(); n++ )
             {
                 double det = (coefs.at(m).at(1) * coefs.at(n).at(0) - coefs.at(m).at(0) * coefs.at(n).at(1));
                 if (fabs(det) < eps)
@@ -469,7 +419,7 @@ void mesh_2d::find_voronoi_areas()
                 double x = -(coefs.at(m).at(1) * coefs.at(n).at(2) - coefs.at(m).at(2) * coefs.at(n).at(1)) / det;
                 double y = (coefs.at(m).at(0) * coefs.at(n).at(2) - coefs.at(m).at(2) * coefs.at(n).at(0)) / det;
                 bool is_local_voronoi_point = true;
-                for ( int k = 0; k < coefs.size(); k++ )
+                for ( unsigned int k = 0; k < coefs.size(); k++ )
                     if ( k != m && k != n )
                     {
                         if ( x * coefs.at(k).at(0) + y * coefs.at(k).at(1) + coefs.at(k).at(2) > eps )
@@ -494,7 +444,7 @@ void mesh_2d::find_voronoi_areas()
         int voronn = voronp.size();
         voronp.push_back(get_point(i));
         voront.push_back({});
-        for ( int j = 0; j < voronoi_local_points.size() - 1; j++ )
+        for ( unsigned int j = 0; j < voronoi_local_points.size() - 1; j++ )
         {
             area += fabs( Vec(voronoi_local_points.at(j), voronoi_local_points.at(j+1)) )/2;
             voronp.push_back(get_point(i) + voronoi_local_points.at(j));
@@ -539,7 +489,7 @@ void mesh_2d::find_voronoi_areas()
     vtk_file << "\nPOINT_DATA " << voronp.size() << "\n";;
     vtk_file << "SCALARS voronz FLOAT\n";
     vtk_file << "LOOKUP_TABLE default\n";
-    for ( int i = 0; i < voronp.size(); i++ )
+    for ( unsigned int i = 0; i < voronp.size(); i++ )
     {
         vtk_file <<  0 << "\n";
     }
@@ -621,5 +571,4 @@ int mesh_2d::get_opposite_point_num(int n)
         std::exit(1);
     }
 }
-
 

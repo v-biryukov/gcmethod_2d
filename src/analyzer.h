@@ -1,5 +1,7 @@
-#include "gcmethod_2d.h"
-#include "mesh_2d.h"
+#pragma once
+
+#include "convection_equation_solver.h"
+#include "mesh_2d/mesh_2d.h"
 
 class analyzer
 {
@@ -19,9 +21,8 @@ public:
         for ( int i = 0; i < hs.size(); i++ )
         {
             mesh_2d m = mesh_2d("gcmethod_2d.ini");
-            m.set_h(hs.at(i));
             std::cout << "\nCreating mesh with h = " << m.get_h() << "is_structured = " << m.get_is_structured() << "\n";
-            m.create_mesh();
+            m.change_h_and_refine(hs.at(i));
             for ( int N : Ns )
             {
                 for ( bool is_monotonic : {true, false} )
