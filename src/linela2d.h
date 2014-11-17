@@ -48,8 +48,8 @@ class linela2d
     mesh_2d * mesh;
 
     std::vector<point_data> data;
-    //std::vector<point_data> data_prev;
-    std::vector<riemann_data> rdata;
+    std::vector<point_data> data_new;
+    //std::vector<riemann_data> rdata;
     std::vector<elements_data> eldata_X;
     std::vector<elements_data> eldata_Y;
 
@@ -79,8 +79,10 @@ class linela2d
     std::vector<int> get_point_elements(int pn);
 
     point_data rotate(point_data & origin, int sign);
-    riemann_data get_riemann_inv_X(int point_n);
-    riemann_data get_riemann_inv_Y(int point_n);
+    riemann_data get_riemann_inv_X(int point_n, int element_n);
+    riemann_data get_riemann_inv_Y(int point_n, int element_n);
+    riemann_data get_riemann_inv_X(int point_n, int element_n1, int element_n2);
+    riemann_data get_riemann_inv_Y(int point_n, int element_n1, int element_n2);
     void set_point_data_X(int pn, riemann_data & rd);
     void set_point_data_Y(int pn, riemann_data & rd);
 
@@ -94,7 +96,7 @@ class linela2d
     void step();
 
 
-    double approximate(vector2d r, int tn, int k);
+    double approximate(vector2d r, int tn, std::vector<riemann_data> & rdata, int k);
     void set_directions(double angle);
 
     void read_from_file(std::string path);
@@ -107,10 +109,10 @@ class linela2d
         {
             double x = (mesh->points[mesh->elements[i][0]].x + mesh->points[mesh->elements[i][1]].x + mesh->points[mesh->elements[i][2]].x)/3.0;
             double y = (mesh->points[mesh->elements[i][0]].y + mesh->points[mesh->elements[i][1]].y + mesh->points[mesh->elements[i][2]].y)/3.0;
-            c1[i] = x > 0 ? 1.0 : 8.0;
-            c2[i] = x > 0 ? 0.5 : 4.0;
-            //c1[i] = 2 + x/20;
-            //c2[i] = 1 + x/10;
+            c1[i] = x > 0 ? 4.0 : 0.5;
+            c2[i] = x > 0 ? 2.0 : 0.25;
+            c1[i] = 4.0;
+            c2[i] = 2.0;
             rho[i] = 1.0;
         }
     }

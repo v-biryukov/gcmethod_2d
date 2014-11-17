@@ -26,7 +26,7 @@ point_data linela2d::rotate(point_data & origin, int sign)
     return result;
 }
 
-riemann_data linela2d::get_riemann_inv_X(int pn)
+riemann_data linela2d::get_riemann_inv_X(int pn, int en0, int en1)
 {
     point_data pd;
     if (is_axes_random)
@@ -35,22 +35,23 @@ riemann_data linela2d::get_riemann_inv_X(int pn)
         pd = data[pn];
     riemann_data rd;
 
-    int en1 = eldata_X[pn].el[0];
-    int en2 = eldata_X[pn].el[1];
-    //double c10 = (c1[en1] + c1[en2]) / 2.0;
-    //double c30 = (c3(en1) + c3(en2)) / 2.0;
 
     rd.w[0] =  0;//-c30/c10 * pd.sxx   +     pd.syy;
 
-    rd.w[1] = -0.5 * c2[en1]*rho[en1]  * pd.vy    +   0.5                     * pd.sxy;
+    rd.w[1] = -0.5 * c2[en0]*rho[en0]  * pd.vy    +   0.5                     * pd.sxy;
 
-    rd.w[2] = +0.5 * c2[en2]*rho[en2]  * pd.vy    +   0.5                     * pd.sxy;
+    rd.w[2] = +0.5 * c2[en1]*rho[en1]  * pd.vy    +   0.5                     * pd.sxy;
 
-    rd.w[3] = - 0.5 * rho[en1] * c3(en1) * pd.vx    +   0.5 * c3(en1) / c1[en1] * pd.sxx;
+    rd.w[3] = - 0.5 * rho[en0] * c3(en0) * pd.vx    +   0.5 * c3(en0) / c1[en0] * pd.sxx;
 
-    rd.w[4] = + 0.5 * rho[en2] * c3(en2) * pd.vx    +   0.5 * c3(en2) / c1[en2] * pd.sxx;
+    rd.w[4] = + 0.5 * rho[en1] * c3(en1) * pd.vx    +   0.5 * c3(en1) / c1[en1] * pd.sxx;
 
     return rd;
+}
+
+riemann_data linela2d::get_riemann_inv_X(int pn, int en)
+{
+    return get_riemann_inv_X(pn, en, en);
 }
 
 void linela2d::set_point_data_X(int pn, riemann_data & rd)
@@ -59,23 +60,22 @@ void linela2d::set_point_data_X(int pn, riemann_data & rd)
     int en2 = eldata_X[pn].el[1];
     point_data pd;
 
-    pd.vx = - 1.0/(rho[en1] * c3(en1))  * rd.w[3] + 1.0/(rho[en2] * c3(en2))   * rd.w[4];
+    pd.vx = - 1.0/(rho[en1] * c3(en1)) * rd.w[3] + 1.0/(rho[en2] * c3(en2)) * rd.w[4];
 
-    pd.vy = - 1.0 / (rho[en1] * c2[en1])   * rd.w[1] + 1.0 / (rho[en2] * c2[en2])  * rd.w[2];
+    pd.vy = - 1.0 / (rho[en1] * c2[en1]) * rd.w[1] + 1.0 / (rho[en2] * c2[en2]) * rd.w[2];
 
-    pd.sxx = +c1[en1]/c3(en1)   * rd.w[3] + c1[en2]/c3(en2)   * rd.w[4];
+    pd.sxx = +c1[en1]/c3(en1) * rd.w[3] + c1[en2]/c3(en2) * rd.w[4];
 
-    pd.sxy =    rd.w[1] +   rd.w[2];
+    pd.sxy = rd.w[1] + rd.w[2];
 
-    pd.syy =    rd.w[0] +   rd.w[3] + rd.w[4];
+    pd.syy = rd.w[0] + rd.w[3] + rd.w[4];
 
     if (is_axes_random)
         pd = rotate(pd, -1);
-
     data[pn] += pd;
 }
 
-riemann_data linela2d::get_riemann_inv_Y(int pn)
+riemann_data linela2d::get_riemann_inv_Y(int pn, int en0, int en1)
 {
     point_data pd;
     if (is_axes_random)
@@ -84,21 +84,20 @@ riemann_data linela2d::get_riemann_inv_Y(int pn)
         pd = data[pn];
     riemann_data rd;
 
-    int en1 = eldata_Y[pn].el[0];
-    int en2 = eldata_Y[pn].el[1];
-    //double c10 = (c1[en1] + c1[en2]) / 2.0;
-    //double c30 = (c3(en1) + c3(en2)) / 2.0;
-
     rd.w[0] =  0.0;//1.0                    * pd.sxx   - c30 / c10 * pd.syy;
 
-    rd.w[1] = -0.5 * c2[en1]*rho[en1] * pd.vx    +   0.5     * pd.sxy;
+    rd.w[1] = -0.5 * c2[en0]*rho[en0] * pd.vx    +   0.5     * pd.sxy;
 
-    rd.w[2] = +0.5 * c2[en2]*rho[en2] * pd.vx    +   0.5     * pd.sxy;
+    rd.w[2] = +0.5 * c2[en1]*rho[en1] * pd.vx    +   0.5     * pd.sxy;
 
-    rd.w[3] = -0.5 * c1[en1]*rho[en1] * pd.vy    +   0.5     * pd.syy;
+    rd.w[3] = -0.5 * c1[en0]*rho[en0] * pd.vy    +   0.5     * pd.syy;
 
-    rd.w[4] = +0.5 * c1[en2]*rho[en2] * pd.vy    +   0.5     * pd.syy;
+    rd.w[4] = +0.5 * c1[en1]*rho[en1] * pd.vy    +   0.5     * pd.syy;
     return rd;
+}
+riemann_data linela2d::get_riemann_inv_Y(int pn, int en)
+{
+    return get_riemann_inv_Y(pn, en, en);
 }
 
 void linela2d::set_point_data_Y(int pn, riemann_data & rd)
@@ -107,16 +106,15 @@ void linela2d::set_point_data_Y(int pn, riemann_data & rd)
     int en2 = eldata_Y[pn].el[1];
     point_data pd;
 
-    pd.vx = - 1.0 / (c2[en1] * rho[en1])  * rd.w[1] + 1.0 / (c2[en2] * rho[en2])  * rd.w[2];
+    pd.vx = - 1.0 / (c2[en1] * rho[en1]) * rd.w[1] + 1.0 / (c2[en2] * rho[en2]) * rd.w[2];
 
-    pd.vy = - 1.0 / (c1[en1] * rho[en1])  * rd.w[3] + 1.0 / (c1[en2] * rho[en2])  * rd.w[4];
+    pd.vy = - 1.0 / (c1[en1] * rho[en1]) * rd.w[3] + 1.0 / (c1[en2] * rho[en2]) * rd.w[4];
 
-    pd.sxx = rd.w[0] + c3(en1)/c1[en1]  * rd.w[3] + c3(en2)/c1[en2]  * rd.w[4];
+    pd.sxx = rd.w[0] + c3(en1)/c1[en1] * rd.w[3] + c3(en2)/c1[en2] * rd.w[4];
 
-    pd.sxy =                    rd.w[1] +                   rd.w[2];
+    pd.sxy = rd.w[1] + rd.w[2];
 
-    pd.syy =             rd.w[3] + rd.w[4];
-
+    pd.syy = rd.w[3] + rd.w[4];
 
     if (is_axes_random)
         pd = rotate(pd, -1);
@@ -171,55 +169,53 @@ void linela2d::calculate_point_elements()
         }
 }
 
-void linela2d::compute_rdata_X()
-{
-    for (int i = 0; i < mesh->get_number_of_points(); i++)
-    {
-        rdata[i] = get_riemann_inv_X(i);
-    }
-}
-
-void linela2d::compute_rdata_Y()
-{
-    for (int i = 0; i < mesh->get_number_of_points(); i++)
-    {
-        rdata[i] = get_riemann_inv_Y(i);
-    }
-}
-
 void linela2d::step_X()
 {
-    compute_rdata_X();
+    std::vector<std::vector<riemann_data> > rdata;
+    rdata.resize(2, std::vector<riemann_data>((N+1)*(N+2)/2));
     for (int i = 0; i < mesh->get_number_of_points(); i++)
     {
+        for (int j = 0; j < (N+1)*(N+2)/2; j++)
+        {
+            rdata[0][j] = get_riemann_inv_X(mesh->elements[eldata_X[i].el[0]][j], eldata_X[i].el[0]);
+            rdata[1][j] = get_riemann_inv_X(mesh->elements[eldata_X[i].el[1]][j], eldata_X[i].el[1]);
+        }
+        riemann_data rdata_here = get_riemann_inv_X(i, eldata_X[i].el[0], eldata_X[i].el[1]);
         std::vector<double> lambda = get_lambda_X(i);
-        riemann_data temp_rd;
-        temp_rd.w[0] = 0;
+        riemann_data diff_rd;
+        diff_rd.w[0] = 0;
         for (int k = 1; k < 5; k++)
         {
             vector2d p = mesh->get_point(i) + lambda[k] * tau * directions[2];
             if ( !mesh->is_inside(p) ) mesh->make_inside_vector(p);
-            temp_rd.w[k] = approximate(p, eldata_X[i].el[(k-1)%2] , k) - rdata[i].w[k];
+            diff_rd.w[k] = approximate(p, eldata_X[i].el[(k-1)%2], rdata[(k-1)%2] , k) - rdata_here.w[k];
         }
-        set_point_data_X(i, temp_rd);
+        set_point_data_X(i, diff_rd);
     }
 }
 
 void linela2d::step_Y()
 {
-    compute_rdata_Y();
+    std::vector<std::vector<riemann_data> > rdata;
+    rdata.resize(2, std::vector<riemann_data>((N+1)*(N+2)/2));
     for (int i = 0; i < mesh->get_number_of_points(); i++)
     {
+        for (int j = 0; j < (N+1)*(N+2)/2; j++)
+        {
+            rdata[0][j] = get_riemann_inv_Y(mesh->elements[eldata_Y[i].el[0]][j], eldata_Y[i].el[0]);
+            rdata[1][j] = get_riemann_inv_Y(mesh->elements[eldata_Y[i].el[1]][j], eldata_Y[i].el[1]);
+        }
+        riemann_data rdata_here = get_riemann_inv_Y(i, eldata_Y[i].el[0], eldata_Y[i].el[1]);
         std::vector<double> lambda = get_lambda_Y(i);
-        riemann_data temp_rd;
-        temp_rd.w[0] = 0;
+        riemann_data diff_rd;
+        diff_rd.w[0] = 0;
         for (int k = 1; k < 5; k++)
         {
             vector2d p = mesh->get_point(i) + lambda[k] * tau * directions[4];
             if ( !mesh->is_inside(p) ) mesh->make_inside_vector(p);
-            temp_rd.w[k] = approximate(p, eldata_Y[i].el[(k-1)%2] , k) - rdata[i].w[k];
+            diff_rd.w[k] = approximate(p, eldata_Y[i].el[(k-1)%2], rdata[(k-1)%2] , k) - rdata_here.w[k];
         }
-        set_point_data_Y(i, temp_rd);
+        set_point_data_Y(i, diff_rd);
     }
 }
 
@@ -250,7 +246,7 @@ void linela2d::calculate()
     }
 }
 
-double linela2d::approximate(vector2d r, int tn, int k)
+double linela2d::approximate(vector2d r, int tn, std::vector<riemann_data> & rdata, int k)
 {
     vector2d ra = mesh->get_triangle_point(tn, 0);
     vector2d rb = mesh->get_triangle_point(tn, 1);
@@ -263,50 +259,50 @@ double linela2d::approximate(vector2d r, int tn, int k)
     double v = 0;
     if ( N == 1 )
     {
-        v += sa * rdata[mesh->elements[tn][0]].w[k];
-        v += sb * rdata[mesh->elements[tn][1]].w[k];
-        v += sc * rdata[mesh->elements[tn][2]].w[k];
+        v += sa * rdata[0].w[k];
+        v += sb * rdata[1].w[k];
+        v += sc * rdata[2].w[k];
 
     }
     else if ( N == 2 )
     {
-        v += sa*(2*sa-1) * rdata[mesh->elements[tn][0]].w[k];
-        v += sb*(2*sb-1) * rdata[mesh->elements[tn][1]].w[k];
-        v += sc*(2*sc-1) * rdata[mesh->elements[tn][2]].w[k];
-        v += 4*sa*sb     * rdata[mesh->elements[tn][3]].w[k];
-        v += 4*sb*sc     * rdata[mesh->elements[tn][4]].w[k];
-        v += 4*sc*sa     * rdata[mesh->elements[tn][5]].w[k];
+        v += sa*(2*sa-1) * rdata[0].w[k];
+        v += sb*(2*sb-1) * rdata[1].w[k];
+        v += sc*(2*sc-1) * rdata[2].w[k];
+        v += 4*sa*sb     * rdata[3].w[k];
+        v += 4*sb*sc     * rdata[4].w[k];
+        v += 4*sc*sa     * rdata[5].w[k];
     }
     else if ( N == 3 )
     {
-        v += sa*(3*sa-1)*(3*sa-2)/2 * rdata[mesh->elements[tn][0]].w[k];
-        v += sb*(3*sb-1)*(3*sb-2)/2 * rdata[mesh->elements[tn][1]].w[k];
-        v += sc*(3*sc-1)*(3*sc-2)/2 * rdata[mesh->elements[tn][2]].w[k];
-        v += 9*sa*(3*sa-1)*sb/2     * rdata[mesh->elements[tn][3]].w[k];
-        v += 9*sb*(3*sb-1)*sa/2     * rdata[mesh->elements[tn][4]].w[k];
-        v += 9*sb*(3*sb-1)*sc/2     * rdata[mesh->elements[tn][5]].w[k];
-        v += 9*sc*(3*sc-1)*sb/2     * rdata[mesh->elements[tn][6]].w[k];
-        v += 9*sc*(3*sc-1)*sa/2     * rdata[mesh->elements[tn][7]].w[k];
-        v += 9*sa*(3*sa-1)*sc/2     * rdata[mesh->elements[tn][8]].w[k];
-        v += 27*sa*sb*sc            * rdata[mesh->elements[tn][9]].w[k];
+        v += sa*(3*sa-1)*(3*sa-2)/2 * rdata[0].w[k];
+        v += sb*(3*sb-1)*(3*sb-2)/2 * rdata[1].w[k];
+        v += sc*(3*sc-1)*(3*sc-2)/2 * rdata[2].w[k];
+        v += 9*sa*(3*sa-1)*sb/2     * rdata[3].w[k];
+        v += 9*sb*(3*sb-1)*sa/2     * rdata[4].w[k];
+        v += 9*sb*(3*sb-1)*sc/2     * rdata[5].w[k];
+        v += 9*sc*(3*sc-1)*sb/2     * rdata[6].w[k];
+        v += 9*sc*(3*sc-1)*sa/2     * rdata[7].w[k];
+        v += 9*sa*(3*sa-1)*sc/2     * rdata[8].w[k];
+        v += 27*sa*sb*sc            * rdata[9].w[k];
     }
     else if ( N == 4 )
     {
-        v += sa*(4*sa-1)*(2*sa-1)*(4*sa-3)/3 * rdata[mesh->elements[tn][0]].w[k];
-        v += sb*(4*sb-1)*(2*sb-1)*(4*sb-3)/3 * rdata[mesh->elements[tn][1]].w[k];
-        v += sc*(4*sc-1)*(2*sc-1)*(4*sc-3)/3 * rdata[mesh->elements[tn][2]].w[k];
-        v += 16*sa*(4*sa-1)*(2*sa-1)*sb/3    * rdata[mesh->elements[tn][3]].w[k];
-        v += 4*sa*(4*sa-1)*sb*(4*sb-1)       * rdata[mesh->elements[tn][4]].w[k];
-        v += 16*sb*(4*sb-1)*(2*sb-1)*sa/3    * rdata[mesh->elements[tn][5]].w[k];
-        v += 16*sb*(4*sb-1)*(2*sb-1)*sc/3    * rdata[mesh->elements[tn][6]].w[k];
-        v += 4*sb*(4*sb-1)*sc*(4*sc-1)       * rdata[mesh->elements[tn][7]].w[k];
-        v += 16*sc*(4*sc-1)*(2*sc-1)*sb/3    * rdata[mesh->elements[tn][8]].w[k];
-        v += 16*sc*(4*sc-1)*(2*sc-1)*sa/3    * rdata[mesh->elements[tn][9]].w[k];
-        v += 4*sa*(4*sa-1)*sc*(4*sc-1)       * rdata[mesh->elements[tn][10]].w[k];
-        v += 16*sa*(4*sa-1)*(2*sa-1)*sc/3    * rdata[mesh->elements[tn][11]].w[k];
-        v += 32*sa*(4*sa-1)*sb*sc            * rdata[mesh->elements[tn][12]].w[k];
-        v += 32*sb*(4*sb-1)*sc*sa            * rdata[mesh->elements[tn][13]].w[k];
-        v += 32*sc*(4*sc-1)*sa*sb            * rdata[mesh->elements[tn][14]].w[k];
+        v += sa*(4*sa-1)*(2*sa-1)*(4*sa-3)/3 * rdata[0].w[k];
+        v += sb*(4*sb-1)*(2*sb-1)*(4*sb-3)/3 * rdata[1].w[k];
+        v += sc*(4*sc-1)*(2*sc-1)*(4*sc-3)/3 * rdata[2].w[k];
+        v += 16*sa*(4*sa-1)*(2*sa-1)*sb/3    * rdata[3].w[k];
+        v += 4*sa*(4*sa-1)*sb*(4*sb-1)       * rdata[4].w[k];
+        v += 16*sb*(4*sb-1)*(2*sb-1)*sa/3    * rdata[5].w[k];
+        v += 16*sb*(4*sb-1)*(2*sb-1)*sc/3    * rdata[6].w[k];
+        v += 4*sb*(4*sb-1)*sc*(4*sc-1)       * rdata[7].w[k];
+        v += 16*sc*(4*sc-1)*(2*sc-1)*sb/3    * rdata[8].w[k];
+        v += 16*sc*(4*sc-1)*(2*sc-1)*sa/3    * rdata[9].w[k];
+        v += 4*sa*(4*sa-1)*sc*(4*sc-1)       * rdata[10].w[k];
+        v += 16*sa*(4*sa-1)*(2*sa-1)*sc/3    * rdata[11].w[k];
+        v += 32*sa*(4*sa-1)*sb*sc            * rdata[12].w[k];
+        v += 32*sb*(4*sb-1)*sc*sa            * rdata[13].w[k];
+        v += 32*sc*(4*sc-1)*sa*sb            * rdata[14].w[k];
     }
     return v;
 }
@@ -325,8 +321,8 @@ void linela2d::init()
     c2.resize(mesh->get_number_of_triangles());
     rho.resize(mesh->get_number_of_triangles());
     data.resize(mesh->get_number_of_points());
-    //data_prev.resize(mesh->get_number_of_points());
-    rdata.resize(mesh->get_number_of_points());
+    data_new.resize(mesh->get_number_of_points());
+    //rdata.resize(mesh->get_number_of_points());
     eldata_X.resize(mesh->get_number_of_points());
     eldata_Y.resize(mesh->get_number_of_points());
     lambda_hint = mesh->get_max_altitude() / N / 2.0;
