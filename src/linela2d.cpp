@@ -11,18 +11,36 @@
 #include "linela2d.h"
 #include <sstream>
 
+point_data linela2d::rotate(point_data & origin, int sign)
+{
+    double rxx = directions[2].x;
+    double rxy = sign*directions[2].y;
+    double ryx = sign*directions[4].x;
+    double ryy = directions[4].y;
+    point_data result;
+    result.vx = rxx * origin.vx + rxy * origin.vy;
+    result.vy = ryx * origin.vx + ryy * origin.vy;
+    result.sxx = rxx*rxx*origin.sxx + 2*rxx*rxy*origin.sxy + rxy*rxy*origin.syy;
+    result.sxy = rxx*ryx*origin.sxx + (rxx*ryy+rxy*ryx)*origin.sxy + rxy*ryy*origin.syy;
+    result.syy = ryx*ryx*origin.sxx + 2*ryx*ryy*origin.sxy + ryy*ryy*origin.syy;
+    return result;
+}
 
 riemann_data linela2d::get_riemann_inv_X(int pn)
 {
-    point_data pd = data[pn];
+    point_data pd;
+    if (is_axes_random)
+        pd = rotate(data[pn], 1);
+    else
+        pd = data[pn];
     riemann_data rd;
 
     int en1 = eldata_X[pn].el[0];
     int en2 = eldata_X[pn].el[1];
-    double c10 = (c1[en1] + c1[en2]) / 2.0;
-    double c30 = (c3(en1) + c3(en2)) / 2.0;
+    //double c10 = (c1[en1] + c1[en2]) / 2.0;
+    //double c30 = (c3(en1) + c3(en2)) / 2.0;
 
-    rd.w[0] =  -c30/c10 * pd.sxx   +     pd.syy;
+    rd.w[0] =  0;//-c30/c10 * pd.sxx   +     pd.syy;
 
     rd.w[1] = -0.5 * c2[en1]*rho[en1]  * pd.vy    +   0.5                     * pd.sxy;
 
@@ -39,29 +57,39 @@ void linela2d::set_point_data_X(int pn, riemann_data & rd)
 {
     int en1 = eldata_X[pn].el[0];
     int en2 = eldata_X[pn].el[1];
+    point_data pd;
 
-    data[pn].vx = - 1.0/(rho[en1] * c3(en1))  * rd.w[3] + 1.0/(rho[en2] * c3(en2))   * rd.w[4];
+    pd.vx = - 1.0/(rho[en1] * c3(en1))  * rd.w[3] + 1.0/(rho[en2] * c3(en2))   * rd.w[4];
 
-    data[pn].vy = - 1.0 / (rho[en1] * c2[en1])   * rd.w[1] + 1.0 / (rho[en2] * c2[en2])  * rd.w[2];
+    pd.vy = - 1.0 / (rho[en1] * c2[en1])   * rd.w[1] + 1.0 / (rho[en2] * c2[en2])  * rd.w[2];
 
-    data[pn].sxx = +c1[en1]/c3(en1)   * rd.w[3] + c1[en2]/c3(en2)   * rd.w[4];
+    pd.sxx = +c1[en1]/c3(en1)   * rd.w[3] + c1[en2]/c3(en2)   * rd.w[4];
 
-    data[pn].sxy =    rd.w[1] +   rd.w[2];
+    pd.sxy =    rd.w[1] +   rd.w[2];
 
-    data[pn].syy =    rd.w[0] +   rd.w[3] + rd.w[4];
+    pd.syy =    rd.w[0] +   rd.w[3] + rd.w[4];
+
+    if (is_axes_random)
+        pd = rotate(pd, -1);
+
+    data[pn] += pd;
 }
 
 riemann_data linela2d::get_riemann_inv_Y(int pn)
 {
-    point_data pd = data[pn];
+    point_data pd;
+    if (is_axes_random)
+        pd = rotate(data[pn], 1);
+    else
+        pd = data[pn];
     riemann_data rd;
 
     int en1 = eldata_Y[pn].el[0];
     int en2 = eldata_Y[pn].el[1];
-    double c10 = (c1[en1] + c1[en2]) / 2.0;
-    double c30 = (c3(en1) + c3(en2)) / 2.0;
+    //double c10 = (c1[en1] + c1[en2]) / 2.0;
+    //double c30 = (c3(en1) + c3(en2)) / 2.0;
 
-    rd.w[0] =  1.0                    * pd.sxx   - c30 / c10 * pd.syy;
+    rd.w[0] =  0.0;//1.0                    * pd.sxx   - c30 / c10 * pd.syy;
 
     rd.w[1] = -0.5 * c2[en1]*rho[en1] * pd.vx    +   0.5     * pd.sxy;
 
@@ -77,16 +105,23 @@ void linela2d::set_point_data_Y(int pn, riemann_data & rd)
 {
     int en1 = eldata_Y[pn].el[0];
     int en2 = eldata_Y[pn].el[1];
+    point_data pd;
 
-    data[pn].vx = - 1.0 / (c2[en1] * rho[en1])  * rd.w[1] + 1.0 / (c2[en2] * rho[en2])  * rd.w[2];
+    pd.vx = - 1.0 / (c2[en1] * rho[en1])  * rd.w[1] + 1.0 / (c2[en2] * rho[en2])  * rd.w[2];
 
-    data[pn].vy = - 1.0 / (c1[en1] * rho[en1])  * rd.w[3] + 1.0 / (c1[en2] * rho[en2])  * rd.w[4];
+    pd.vy = - 1.0 / (c1[en1] * rho[en1])  * rd.w[3] + 1.0 / (c1[en2] * rho[en2])  * rd.w[4];
 
-    data[pn].sxx = rd.w[0] + c3(en1)/c1[en1]  * rd.w[3] + c3(en2)/c1[en2]  * rd.w[4];
+    pd.sxx = rd.w[0] + c3(en1)/c1[en1]  * rd.w[3] + c3(en2)/c1[en2]  * rd.w[4];
 
-    data[pn].sxy =                    rd.w[1] +                   rd.w[2];
+    pd.sxy =                    rd.w[1] +                   rd.w[2];
 
-    data[pn].syy =             rd.w[3] + rd.w[4];
+    pd.syy =             rd.w[3] + rd.w[4];
+
+
+    if (is_axes_random)
+        pd = rotate(pd, -1);
+
+    data[pn] += pd;
 }
 
 std::vector<double> linela2d::get_lambda_X(int point_n)
@@ -159,12 +194,12 @@ void linela2d::step_X()
     {
         std::vector<double> lambda = get_lambda_X(i);
         riemann_data temp_rd;
-        temp_rd.w[0] = rdata[i].w[0];
+        temp_rd.w[0] = 0;
         for (int k = 1; k < 5; k++)
         {
             vector2d p = mesh->get_point(i) + lambda[k] * tau * directions[2];
             if ( !mesh->is_inside(p) ) mesh->make_inside_vector(p);
-            temp_rd.w[k] = approximate(p, eldata_X[i].el[(k-1)%2] , k);
+            temp_rd.w[k] = approximate(p, eldata_X[i].el[(k-1)%2] , k) - rdata[i].w[k];
         }
         set_point_data_X(i, temp_rd);
     }
@@ -177,12 +212,12 @@ void linela2d::step_Y()
     {
         std::vector<double> lambda = get_lambda_Y(i);
         riemann_data temp_rd;
-        temp_rd.w[0] = rdata[i].w[0];
+        temp_rd.w[0] = 0;
         for (int k = 1; k < 5; k++)
         {
             vector2d p = mesh->get_point(i) + lambda[k] * tau * directions[4];
             if ( !mesh->is_inside(p) ) mesh->make_inside_vector(p);
-            temp_rd.w[k] = approximate(p, eldata_Y[i].el[(k-1)%2] , k);
+            temp_rd.w[k] = approximate(p, eldata_Y[i].el[(k-1)%2] , k) - rdata[i].w[k];
         }
         set_point_data_Y(i, temp_rd);
     }
@@ -190,12 +225,18 @@ void linela2d::step_Y()
 
 void linela2d::step()
 {
+    if (is_axes_random)
+    {
+        set_directions(((double) rand() / (RAND_MAX)) * 2.0 * M_PI);
+        calculate_point_elements();
+    }
     step_X();
     step_Y();
 }
 
 void linela2d::calculate()
 {
+
     for (int i = 0; i < number_of_steps; i++)
     {
         if (i % saving_frequency == 0)
@@ -328,6 +369,9 @@ void linela2d::read_from_file(std::string path)
 
     string is_monotonic_str = pt.get<string>("Method.is_monotonic");
     is_monotonic = (is_monotonic_str == "true" || is_monotonic_str == "TRUE" || is_monotonic_str == "True");
+
+    string is_axes_random_str = pt.get<string>("Method.is_axes_random");
+    is_axes_random = (is_axes_random_str == "true" || is_axes_random_str == "TRUE" || is_axes_random_str == "True");
 
     //string use_precalculations_str = pt.get<string>("Method.use_precalculations");
     //use_precalculations = (use_precalculations_str == "true" || use_precalculations_str == "TRUE" || use_precalculations_str == "True");

@@ -21,6 +21,15 @@ struct point_data
     double sxx;
     double sxy;
     double syy;
+
+    void operator+=(point_data & pd)
+    {
+        vx += pd.vx;
+        vy += pd.vy;
+        sxx += pd.sxx;
+        sxy += pd.sxy;
+        syy += pd.syy;
+    }
 };
 
 struct riemann_data
@@ -69,7 +78,7 @@ class linela2d
 
     std::vector<int> get_point_elements(int pn);
 
-
+    point_data rotate(point_data & origin, int sign);
     riemann_data get_riemann_inv_X(int point_n);
     riemann_data get_riemann_inv_Y(int point_n);
     void set_point_data_X(int pn, riemann_data & rd);
@@ -96,9 +105,13 @@ class linela2d
     {
         for (int i = 0; i < mesh->get_number_of_triangles(); i++)
         {
-            c1[i] = 2.0; //* (mesh->points[mesh->elements[i][0]].x + 10.0)/10.0;
-            c2[i] = 1.0; //* (mesh->points[mesh->elements[i][0]].x + 10.0)/10.0;
-            rho[i] = 1.0;//(mesh->points[mesh->elements[i][0]].x + 10.0)/10.0;
+            double x = (mesh->points[mesh->elements[i][0]].x + mesh->points[mesh->elements[i][1]].x + mesh->points[mesh->elements[i][2]].x)/3.0;
+            double y = (mesh->points[mesh->elements[i][0]].y + mesh->points[mesh->elements[i][1]].y + mesh->points[mesh->elements[i][2]].y)/3.0;
+            c1[i] = x > 0 ? 1.0 : 8.0;
+            c2[i] = x > 0 ? 0.5 : 4.0;
+            //c1[i] = 2 + x/20;
+            //c2[i] = 1 + x/10;
+            rho[i] = 1.0;
         }
     }
 
@@ -108,24 +121,25 @@ class linela2d
         {
             double x = mesh->points[i].x;
             double y = mesh->points[i].y;
-            if (x*x + y*y < 1.5)
+            vector2d v = vector2d(x, y);
+            vector2d a = vector2d(0, 0);
+            int tn = mesh->triangles[i][0];
+            if (x > -3 && x < -1)
             {
-                data[i].vx = (5 - x) / (x*x + y*y + 1);
-                data[i].vy = (5 - y) / (x*x + y*y + 1);
+                data[i].vx = -1.0/(rho[tn]*c3(tn)) * sin((x+3)/2.0*M_PI);
+                data[i].vy = 0;
+                data[i].sxx = c1[tn]/c3(tn) * sin((x+3)/2.0*M_PI);
+                data[i].sxy = 0;
+                data[i].syy = 1 * sin((x+3)/2.0*M_PI);
             }
-            /*if (y > -1 && y < 1)
-            {
-                data[i].vx = 0;
-                data[i].vy = 1;
-            }*/
             else
             {
                 data[i].vx = 0;
                 data[i].vy = 0;
+                data[i].sxx = 0;
+                data[i].sxy = 0;
+                data[i].syy = 0;
             }
-            data[i].sxx = 0;
-            data[i].sxy = 0;
-            data[i].syy = 0;
         }
     }
 

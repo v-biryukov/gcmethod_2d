@@ -115,6 +115,7 @@ void mesh_2d::create_mesh()
 
 void mesh_2d::create_unstructured_mesh()
 {
+    bool is_line = true;
     double step_x = size_x / nx;
     double step_y = size_y / ny;
 	// Setting triangulateio in and out:
@@ -122,6 +123,8 @@ void mesh_2d::create_unstructured_mesh()
     init_triangulateio(&in);
     init_triangulateio(&mesh);
     in.numberofpoints = 2*(nx + ny);
+    if (is_line)
+        in.numberofpoints += ny - 1;
     in.numberofpointattributes = 0;
     in.pointlist = (REAL *) malloc(in.numberofpoints * 2 * sizeof(REAL));
     in.pointmarkerlist = (int *) NULL;
@@ -141,18 +144,40 @@ void mesh_2d::create_unstructured_mesh()
         in.pointlist[2*(2*nx + ny) + 2*j + 0] = -size_x/2;
         in.pointlist[2*(2*nx + ny) + 2*j + 1] = +size_y/2 - j * step_y;
     }
+    if (is_line)
+    {
+        for ( int j = 1; j < ny; j++ )
+        {
+            in.pointlist[2*(2*nx + 2*ny) + 2*(j-1) + 0] = 0.0;
+            in.pointlist[2*(2*nx + 2*ny) + 2*(j-1) + 1] = -size_y/2 + j * step_y;
+        }
+    }
 
 
     in.numberofsegments = in.numberofpoints;
+    if (is_line)
+        in.numberofsegments += 1;
     in.segmentlist = (int *) malloc(in.numberofsegments * 2 * sizeof(int));
-    for ( int i = 0; i < in.numberofsegments-1; i++)
+    for ( int i = 0; i < 2*(nx + ny)-1; i++)
     {
         in.segmentlist[2*i + 0] = i;
         in.segmentlist[2*i + 1] = i+1;
     }
-	in.segmentlist[2*(in.numberofsegments-1)] = in.numberofsegments-1;
-	in.segmentlist[2*(in.numberofsegments-1) + 1] = 0;
+    in.segmentlist[2*(2*(nx + ny)-1)] = 2*(nx + ny)-1;
+    in.segmentlist[2*(2*(nx + ny)-1) + 1] = 0;
 
+    if (is_line)
+    {
+        in.segmentlist[2*(2*(nx + ny))] = nx / 2;
+        in.segmentlist[2*(2*(nx + ny)) + 1] = 2*(nx + ny);
+        for ( int i = 0; i < ny-2; i++)
+        {
+            in.segmentlist[2*(2*(nx + ny)+i) + 0] = 2*(nx + ny) + i;
+            in.segmentlist[2*(2*(nx + ny)+i) + 1] = 2*(nx + ny) + i+1;
+        }
+        in.segmentlist[2*(2*(nx + ny))] = 2*nx + ny - nx / 2;
+        in.segmentlist[2*(2*(nx + ny)) + 1] = in.numberofpoints - 1;
+    }
 
     in.numberofholes = 0;
     in.numberofregions = 0;
