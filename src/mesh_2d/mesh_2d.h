@@ -64,6 +64,9 @@ class mesh_2d
 	// number of only main points (excluding additional)
 	int number_of_main_points;
 
+    // maximum triangle altitude
+    double max_altitude;
+
 public:
 
 	// points of the mesh (including additional points)
@@ -77,6 +80,9 @@ public:
 
 	// triangle neighbors of the point
 	std::vector<std::vector<int> > triangles;
+
+    // maximum altitude among all elements
+    double get_max_altitude();
 
 	// voronoi areas for each point
 	// area is restricted by borders
@@ -123,12 +129,16 @@ private:
 	void find_neighbors(triangulateio * mesh);
 	void find_triangles(triangulateio * mesh);
 	void find_voronoi_areas();
+    void find_max_altitude();
 
 	//check if point n is corner point
 	bool is_corner(int n);
 
 	void create_structured_mesh();
 	void create_unstructured_mesh();
+
+    void init_triangulateio(triangulateio * in);
+    void free_triangulateio(triangulateio * in);
 };
 
 

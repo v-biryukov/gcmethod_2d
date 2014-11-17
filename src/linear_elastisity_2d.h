@@ -27,14 +27,16 @@ class linear_elastisity_2d
 	std::vector<vector2d> values_v1;
 	std::vector<tensor2d> values_T1;
 
-    double c1, c2, rho;
+    //double c1, c2, rho;
+    std::vector<double> c1_continuous;
+    std::vector<double> c2_continuous;
+    std::vector<double> rho_continuous;
 
     std::vector<vector2d> xis;
     std::vector<std::vector<vector2d> > ns;
     std::vector<double> ls;
     std::vector<double> Lambda;
-    std::vector<std::vector<tensor2d> > N0;
-    std::vector<std::vector<tensor2d> > N1;
+    std::vector<std::vector<tensor2d> > Nt;
 
     int cur_step;
     double eps_z = 1e-10;
@@ -49,23 +51,31 @@ class linear_elastisity_2d
 	int number_of_steps;
 
     void init();
-    void get_w(int j, std::vector<double> & w, vector2d v, tensor2d T);
-    void get_vT (int j, std::vector<double> w, vector2d & v, tensor2d & T);
+    void get_w(int j, int tn, std::vector<double> & w, vector2d v, tensor2d T);
+    double get_w(int j, int k, int tn, vector2d v, tensor2d T);
+    void get_vT (int j, std::vector<double> w, int pn, vector2d & v, tensor2d & T);
     void set_initial_conditions();
     void read_from_file(std::string path);
     void save_to_vtk(std::string name);
 
     double c3();
+    double c3(int tn);
+    double lamme_l(int tn);
+    double lamme_m(int tn);
     void set_P_wave(vector2d & v, tensor2d & T, double x, double y, vector2d c, vector2d dir, double w, double mag);
     void set_S_wave(vector2d & v, tensor2d & T, double x, double y, vector2d c, vector2d dir, double w, double mag);
     void initial_conditions(vector2d & v, tensor2d & T, double x, double y);
 
-    void initial_conditions(int j, std::vector<double> & w, double x, double y);
-    double initial_conditions(int j, int k, double x, double y);
+    //void initial_conditions(int j, std::vector<double> & w, double x, double y);
+    double initial_conditions(int j, int k, int tn, double x, double y);
     void step();
     double approximate(std::vector<double> & w_prev, vector2d r, int tn);
     bool min_max_check(double z, std::vector<double> w_prev);
-    double get_w(int j, int k, vector2d v, tensor2d T);
+
+
+    void continuous_parameters(double & c1, double & c2, double & rho, vector2d p);
+    void set_continuous_parameters();
+    double get_lambda(int tn, int k);
 
 public:
     void calculate();

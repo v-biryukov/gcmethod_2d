@@ -30,9 +30,9 @@ void DrawProgressBar(int len, double percent) {
 
 void linear_elastisity_2d::initial_conditions(vector2d & v, tensor2d & T, double x, double y)
 {
-    set_S_wave(v, T, x, y, vector2d(0, 0), vector2d(0, -1), 2, 1);
-    /*
-    if ( x > -1.5 && x < 1.5)
+    set_P_wave(v, T, x, y, vector2d(-3, 0), vector2d(1, 0), 2, 1);
+/*
+    if ( x > -3.5 && x < -1.5)
         v.x = 2;
     else
         v.x = 0;
@@ -55,19 +55,19 @@ void linear_elastisity_2d::initial_conditions(vector2d & v, tensor2d & T, double
     T.t11 = 0;*/
 }
 
-void linear_elastisity_2d::initial_conditions(int j, std::vector<double> & w, double x, double y)
+/*void linear_elastisity_2d::initial_conditions(int j, std::vector<double> & w, double x, double y)
 {
     vector2d v;
     tensor2d T;
     initial_conditions(v, T, x, y);
     get_w(j, w, v, T);
-}
-double linear_elastisity_2d::initial_conditions(int j, int k, double x, double y)
+}*/
+double linear_elastisity_2d::initial_conditions(int j, int k, int tn, double x, double y)
 {
     vector2d v;
     tensor2d T;
     initial_conditions(v, T, x, y);
-    return get_w(j, k, v, T);
+    return get_w(j, k, tn, v, T);
 }
 
 void linear_elastisity_2d::linear_elastisity_2d::init()
@@ -82,34 +82,65 @@ void linear_elastisity_2d::linear_elastisity_2d::init()
         ns[i][1] = vector2d(-ns[i][0].y, ns[i][0].x);
     }
 
-    N0.resize(2, std::vector<tensor2d>(2));
+    Nt.resize(2, std::vector<tensor2d>(2));
     for ( int i = 0; i < 2; i++ )
         for ( int j = 0; j < 2; j++ )
-            N0[i][j] = ((ns[i][0]^ns[j][0]) + (ns[j][0]^ns[i][0]))/2;
-    N1.resize(2, std::vector<tensor2d>(2));
-    for ( int i = 0; i < 2; i++ )
-        for ( int j = 0; j < 2; j++ )
-            N1[i][j] = ((ns[i][0]^ns[j][0]) + (ns[j][0]^ns[i][0]))/2;
+            Nt[i][j] = ((ns[i][0]^ns[j][0]) + (ns[j][0]^ns[i][0]))/2;
 
-    Lambda.resize(5);
-    Lambda.at(0) =  c1 ;
-    Lambda.at(1) = -c1 ;
-    Lambda.at(2) =  c2 ;
-    Lambda.at(3) = -c2 ;
-    Lambda.at(4) =   0 ;
+
+
 
     values_v0.resize(mesh->get_number_of_points());
     values_T0.resize(mesh->get_number_of_points());
     values_v1.resize(mesh->get_number_of_points());
     values_T1.resize(mesh->get_number_of_points());
     set_initial_conditions();
+
+    c1_continuous.resize(mesh->get_number_of_triangles());
+    c2_continuous.resize(mesh->get_number_of_triangles());
+    rho_continuous.resize(mesh->get_number_of_triangles());
+    set_continuous_parameters();
+
+    Lambda.resize(5);
+    Lambda.at(0) =  c1_continuous.at(0);
+    Lambda.at(1) = -c1_continuous.at(0) ;
+    Lambda.at(2) =  c2_continuous.at(0) ;
+    Lambda.at(3) = -c2_continuous.at(0) ;
+    Lambda.at(4) =   0 ;
+
     cur_step = 0;
 }
 
-double linear_elastisity_2d::c3()
+double linear_elastisity_2d::get_lambda(int tn, int k)
 {
-    return c1*(1 - 2 * c2 * c2 / c1 / c1);
+    double l = 0;
+    switch (k)
+    {
+        case 0 : l =  c1_continuous.at(tn); break;
+        case 1 : l = -c1_continuous.at(tn); break;
+        case 2 : l =  c2_continuous.at(tn); break;
+        case 3 : l = -c2_continuous.at(tn); break;
+        case 4 : l = 0; break;
+    }
+    return l;
 }
+
+
+double linear_elastisity_2d::c3(int tn)
+{
+    return c1_continuous[tn]*(1 - 2 * c2_continuous[tn] * c2_continuous[tn] / c1_continuous[tn] / c1_continuous[tn]);
+}
+
+double linear_elastisity_2d::lamme_l(int tn)
+{
+    return rho_continuous[tn] * (c1_continuous[tn]*c1_continuous[tn] - 2 * c2_continuous[tn] * c2_continuous[tn]);
+}
+
+double linear_elastisity_2d::lamme_m(int tn)
+{
+    return rho_continuous[tn] * c2_continuous[tn] * c2_continuous[tn];
+}
+
 
 void linear_elastisity_2d::set_P_wave(vector2d & v, tensor2d & T, double x, double y, vector2d c, vector2d dir, double w, double mag)
 {
@@ -117,12 +148,14 @@ void linear_elastisity_2d::set_P_wave(vector2d & v, tensor2d & T, double x, doub
     vector2d r = vector2d(x, y);
     tensor2d I = tensor2d(1, 0, 0, 1);
     double d = (r-c)*dir;
+    double c1, c2, rho;
+    continuous_parameters(c1, c2, rho, vector2d(x, y));
     if ( abs(d) < w/2 )
     {
         mag *= cos(3.14159265*d/w);
         v = dir * mag;
-        T = - mag * rho * c3() * I;
-        T -= mag * rho * (c1 - c3()) * tensor2d(dir.x*dir.x, dir.x*dir.y, dir.x*dir.y, dir.y*dir.y);
+        T = - mag * rho * c1 * (1 - 2*c2*c2/c1/c1) * I;
+        T -= mag * rho * (c1 - c1 * (1 - 2*c2*c2/c1/c1)) * tensor2d(dir.x*dir.x, dir.x*dir.y, dir.x*dir.y, dir.y*dir.y);
     }
     else
     {
@@ -136,11 +169,13 @@ void linear_elastisity_2d::set_S_wave(vector2d & v, tensor2d & T, double x, doub
     vector2d r = vector2d(x, y);
     vector2d ort_dir = vector2d(-dir.y, dir.x);
     double d = (r-c)*dir;
+    double c1, c2, rho;
+    continuous_parameters(c1, c2, rho, vector2d(x, y));
     if ( abs(d) < w/2 )
     {
         mag *= cos(3.14159265*d/w);
-        v = mag * ort_dir;
-        T = - mag * rho * c2 * tensor2d(dir.x*v.x, dir.x*v.y, dir.y*v.x, dir.y*v.y);
+        v = mag * c2 * ort_dir;
+        T = - mag * rho * c2 * c2 * tensor2d(dir.x*ort_dir.x, dir.x*ort_dir.y, dir.y*ort_dir.x, dir.y*ort_dir.y);
     }
     else
     {
@@ -159,6 +194,37 @@ void linear_elastisity_2d::set_initial_conditions()
         initial_conditions(v, T, mesh->points.at(j).x, mesh->points.at(j).y);
         values_v0.at(j) = v;
         values_T0.at(j) = T;
+    }
+}
+
+void linear_elastisity_2d::continuous_parameters(double & c1, double & c2, double & rho, vector2d p)
+{
+    c1 = (1 - 2 / 3.14159265 * atan(2*p.x));
+    c2 = c1 / 2;
+    rho = c2;
+    /*
+    if ( p.x < 0 )
+    {
+        c1 = 1;
+        c2 = 0.5;
+        rho = 1;
+    }
+    else
+    {
+        c1 = 2;
+        c2 = 1;
+        rho = 2;
+    }*/
+}
+
+void linear_elastisity_2d::set_continuous_parameters()
+{
+    for ( int i = 0; i < mesh->get_number_of_triangles(); i++ )
+    {
+        vector2d mid_point = (mesh->points.at(mesh->elements.at(i).at(0))+
+                              mesh->points.at(mesh->elements.at(i).at(1))+
+                              mesh->points.at(mesh->elements.at(i).at(2)))/3;
+        continuous_parameters (c1_continuous.at(i), c2_continuous.at(i), rho_continuous.at(i), mid_point);
     }
 }
 
@@ -184,14 +250,16 @@ void linear_elastisity_2d::step()
                         for ( unsigned int m = 0; m < mesh->elements.at(n).size(); m++ )
                         {
                             int pn = mesh->elements.at(n).at(m);
-                            w_prev.at(m) = get_w(j, k, values_v0.at(pn), values_T0.at(pn));
+                            w_prev.at(m) = get_w(j, k, tn, values_v0.at(pn), values_T0.at(pn));
                         }
                         break;
                     }
+                //p = mesh->get_point(i) - get_lambda(tn, k)*xis.at(j)/Magnitude(xis.at(j))*tau;
                 w.at(j).at(k) = approximate(w_prev, p, tn);
             }
-            w.at(j).at(4) = initial_conditions(j, 4, mesh->points.at(i).x, mesh->points.at(i).y);
-            get_vT(j, w.at(j), values_v1.at(i), values_T1.at(i));
+            // TODO
+            w.at(j).at(4) = initial_conditions(j, 4, mesh->triangles.at(i).at(0), mesh->points.at(i).x, mesh->points.at(i).y);
+            get_vT(j, w.at(j), i, values_v1.at(i), values_T1.at(i));
         }
         values_v0.swap(values_v1);
         values_T0.swap(values_T1);
@@ -321,68 +389,39 @@ void linear_elastisity_2d::save_to_vtk(std::string name)
     }
 }
 
-void linear_elastisity_2d::get_w(int j, std::vector<double> & w, vector2d v, tensor2d T)
+void linear_elastisity_2d::get_w(int j, int tn, std::vector<double> & w, vector2d v, tensor2d T)
 {
     w.resize(5);
-    if (j == 0)
-    {
-        w[0] = ns[0][0] * v - 1.0/c1/rho * N0[0][0] * T;
-        w[1] = ns[0][0] * v + 1.0/c1/rho * N0[0][0] * T;
-        w[2] = ns[0][1] * v - 1.0/c2/rho * N0[0][1] * T;
-        w[3] = ns[0][1] * v + 1.0/c2/rho * N0[0][1] * T;
-        w[4] = (N0[1][1] - (1-2*c2*c2/c1/c1)*N0[0][0]) * T;
-    }
-    else if (j == 1)
-    {
-        w[0] = ns[1][0] * v - 1.0/c1/rho * N1[0][0] * T;
-        w[1] = ns[1][0] * v + 1.0/c1/rho * N1[0][0] * T;
-        w[2] = ns[1][1] * v - 1.0/c2/rho * N1[0][1] * T;
-        w[3] = ns[1][1] * v + 1.0/c2/rho * N1[0][1] * T;
-        w[4] = (N1[1][1] - (1-2*c2*c2/c1/c1)*N1[0][0]) * T;
-    }
+    w[0] = ns[j][0] * v - 1.0/c1_continuous[tn]/rho_continuous[tn] * Nt[0][0] * T;
+    w[1] = ns[j][0] * v + 1.0/c1_continuous[tn]/rho_continuous[tn] * Nt[0][0] * T;
+    w[2] = ns[j][1] * v - 1.0/c2_continuous[tn]/rho_continuous[tn] * Nt[0][1] * T;
+    w[3] = ns[j][1] * v + 1.0/c2_continuous[tn]/rho_continuous[tn] * Nt[0][1] * T;
+    w[4] = (Nt[1][1] - (1-2*c2_continuous[tn]*c2_continuous[tn]/c1_continuous[tn]/c1_continuous[tn])*Nt[0][0]) * T;
 }
 
-double linear_elastisity_2d::get_w(int j, int k, vector2d v, tensor2d T)
+double linear_elastisity_2d::get_w(int j, int k, int tn, vector2d v, tensor2d T)
 {
     double w = 0;
-    if (j == 0)
+    switch (k)
     {
-        switch (k)
-        {
-            case 0 : w = ns[0][0] * v - 1.0/c1/rho * N0[0][0] * T; break;
-            case 1 : w = ns[0][0] * v + 1.0/c1/rho * N0[0][0] * T; break;
-            case 2 : w = ns[0][1] * v - 1.0/c2/rho * N0[0][1] * T; break;
-            case 3 : w = ns[0][1] * v + 1.0/c2/rho * N0[0][1] * T; break;
-            case 4 : w = (N0[1][1] - (1-2*c2*c2/c1/c1)*N0[0][0]) * T; break;
-        }
-    }
-    else if (j == 1)
-    {
-        switch (k)
-        {
-            case 0 : w = ns[1][0] * v - 1.0/c1/rho * N1[0][0] * T; break;
-            case 1 : w = ns[1][0] * v + 1.0/c1/rho * N1[0][0] * T; break;
-            case 2 : w = ns[1][1] * v - 1.0/c2/rho * N1[0][1] * T; break;
-            case 3 : w = ns[1][1] * v + 1.0/c2/rho * N1[0][1] * T; break;
-            case 4 : w = (N1[1][1] - (1-2*c2*c2/c1/c1)*N1[0][0]) * T; break;
-        }
+        case 0 : w = ns[j][0] * v - 1.0/c1_continuous[tn]/rho_continuous[tn] * Nt[0][0] * T; break;
+        case 1 : w = ns[j][0] * v + 1.0/c1_continuous[tn]/rho_continuous[tn] * Nt[0][0] * T; break;
+        case 2 : w = ns[j][1] * v - 1.0/c2_continuous[tn]/rho_continuous[tn] * Nt[0][1] * T; break;
+        case 3 : w = ns[j][1] * v + 1.0/c2_continuous[tn]/rho_continuous[tn] * Nt[0][1] * T; break;
+        case 4 : w = (Nt[1][1] - (1-2*c2_continuous[tn]*c2_continuous[tn]/c1_continuous[tn]/c1_continuous[tn])*Nt[0][0]) * T; break;
     }
     return w;
 }
 
-void linear_elastisity_2d::get_vT (int j, std::vector<double> w, vector2d & v, tensor2d & T)
+void linear_elastisity_2d::get_vT (int j, std::vector<double> w, int pn, vector2d & v, tensor2d & T)
 {
     tensor2d I = tensor2d(1, 0, 0, 1);
-    if (j == 0)
-    {
-        v = ((w[0]+w[1])*ns[0][0] + (w[2]+w[3])*ns[0][1])/2;
-        T = (rho*(w[1]-w[0])*((c1-c3())*N0[0][0] + c2*I) + 2*c2*rho*(w[3]-w[2])*N0[0][1] + 2*w[4]*(I-N0[0][0]))/2;
-    }
-    else if (j == 1)
-    {
-        v = ((w[0]+w[1])*ns[1][0] + (w[2]+w[3])*ns[1][1])/2;
-        T = (rho*(w[1]-w[0])*((c1-c3())*N1[0][0] + c2*I) + 2*c2*rho*(w[3]-w[2])*N1[0][1] + 2*w[4]*(I-N1[0][0]))/2;
-    }
+    double c1, c2, rho;
+    continuous_parameters(c1, c2, rho, mesh->points[pn]);
+    double c3 = c1*(1 - 2 * c2 * c2 / c1 / c1);
+    v = ((w[0]+w[1])*ns[j][0] + (w[2]+w[3])*ns[j][1])/2;
+    T = (rho*(w[1]-w[0])*((c1-c3)*Nt[0][0] + c2*I) +
+        2*c2*rho*(w[3]-w[2])*Nt[0][1] + 2*w[4]*(I-Nt[0][0]))/2;
 }
 
 void linear_elastisity_2d::read_from_file(std::string path)
@@ -415,9 +454,9 @@ void linear_elastisity_2d::read_from_file(std::string path)
     ss << pt.get<std::string>("Method.axis2");
     ss >> xis[1].x >> xis[1].y;
     tau = pt.get<double>("Method.tau");
-    c1 = pt.get<double>("Equation.c1");
-    c2 = pt.get<double>("Equation.c2");
-    rho = pt.get<double>("Equation.rho");
+    //c1 = pt.get<double>("Equation.c1");
+    //c2 = pt.get<double>("Equation.c2");
+    //rho = pt.get<double>("Equation.rho");
     number_of_steps = pt.get<int>("Method.number_of_steps");
     N = pt.get<int>("Method.N");
     std::string is_monotonic_str = pt.get<std::string>("Method.is_monotonic");

@@ -54,12 +54,63 @@ void mesh_2d::read_from_file(std::string path)
     N = pt.get<int>("Method.N");
 }
 
+void mesh_2d::init_triangulateio(triangulateio * in)
+{
+    in->pointlist = (REAL*)(NULL);
+    in->pointattributelist = (REAL*)(NULL);
+    in->pointmarkerlist = (int*)(NULL);
+    in->numberofpoints = 0;
+    in->numberofpointattributes = 0;
+
+    in->trianglelist = (int*)(NULL);
+    in->triangleattributelist = (REAL*)(NULL);
+    in->trianglearealist = (REAL*)(NULL);
+    in->neighborlist = (int*)(NULL);
+    in->numberoftriangles = 0;
+    in->numberofcorners = 0;
+    in->numberoftriangleattributes = 0;
+
+    in->segmentlist = (int*)(NULL);
+    in->segmentmarkerlist = (int*)(NULL);
+    in->numberofsegments = 0;
+
+    in->holelist = (REAL*)(NULL);
+    in->numberofholes = 0;
+
+    in->regionlist = (REAL*)(NULL);
+    in->numberofregions = 0;
+
+    in->edgelist = (int*)(NULL);
+    in->edgemarkerlist = (int*)(NULL);
+    in->normlist = (REAL*)(NULL);
+    in->numberofedges = 0;
+}
+
+void mesh_2d::free_triangulateio(triangulateio * in)
+{
+    if (in->pointlist)             free(in->pointlist);
+    if (in->pointattributelist)    free(in->pointattributelist);
+    if (in->pointmarkerlist)       free(in->pointmarkerlist);
+    if (in->trianglelist)          free(in->trianglelist);
+    if (in->triangleattributelist) free(in->triangleattributelist);
+    if (in->trianglearealist)      free(in->trianglearealist);
+    if (in->neighborlist)          free(in->neighborlist);
+    if (in->segmentlist)           free(in->segmentlist);
+    if (in->segmentmarkerlist)     free(in->segmentmarkerlist);
+    if (in->regionlist)            free(in->regionlist);
+    if (in->edgelist)              free(in->edgelist);
+    if (in->edgemarkerlist)        free(in->edgemarkerlist);
+    if (in->normlist)              free(in->normlist);
+}
+
+
 void mesh_2d::create_mesh()
 {
     if ( is_structured )
         create_structured_mesh();
     else
         create_unstructured_mesh();
+    find_max_altitude();
 }
 
 void mesh_2d::create_unstructured_mesh()
@@ -68,6 +119,8 @@ void mesh_2d::create_unstructured_mesh()
     double step_y = size_y / ny;
 	// Setting triangulateio in and out:
 	triangulateio in, mesh;
+    init_triangulateio(&in);
+    init_triangulateio(&mesh);
     in.numberofpoints = 2*(nx + ny);
     in.numberofpointattributes = 0;
     in.pointlist = (REAL *) malloc(in.numberofpoints * 2 * sizeof(REAL));
@@ -125,17 +178,8 @@ void mesh_2d::create_unstructured_mesh()
 
     triangulate(s, &in, &mesh, (struct triangulateio *) NULL);
     save_to_class_data(&mesh);
-    free(in.pointlist);
-    free(in.segmentlist);
-
-    free(mesh.pointlist);
-    free(mesh.segmentlist);
-    free(mesh.edgelist);
-    free(mesh.trianglelist);
-    free(mesh.segmentmarkerlist);
-    free(mesh.edgemarkerlist);
-    free(mesh.pointmarkerlist);
-    free(mesh.triangleattributelist);
+    free_triangulateio(&in);
+    free_triangulateio(&mesh);
     std::cout << "Mesh has been generated successfully." << std::endl;
 }
 
@@ -354,6 +398,29 @@ void mesh_2d::find_triangles(triangulateio * mesh)
                     triangles.at(i).push_back(x);
 }
 
+
+void mesh_2d::find_max_altitude()
+{
+    max_altitude = 0;
+    for (int i = 0; i < get_number_of_triangles(); i++)
+    {
+        vector2d ra = points[elements[i][0]] - points[elements[i][1]];
+        vector2d rb = points[elements[i][1]] - points[elements[i][2]];
+        vector2d rc = points[elements[i][2]] - points[elements[i][0]];
+        double ha = Magnitude(ra - Dot(ra, rb) * rb / Magnitude(rb));
+        double hb = Magnitude(rb - Dot(rb, rc) * rc / Magnitude(rc));
+        double hc = Magnitude(rc - Dot(rc, ra) * ra / Magnitude(ra));
+        std::cout << i << " : " << max_altitude << " : " << ha << " : " << hb << " : " << hc <<std::endl;
+        if (ha > max_altitude) max_altitude = ha;
+        if (hb > max_altitude) max_altitude = hb;
+        if (hc > max_altitude) max_altitude = hc;
+    }
+}
+
+double mesh_2d::get_max_altitude()
+{
+    return max_altitude;
+}
 
 // Function that finds voronoi areas for each point and saves
 // voronoi diagram in out/voronoi.vtk
