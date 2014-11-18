@@ -109,11 +109,12 @@ class linela2d
         {
             double x = (mesh->points[mesh->elements[i][0]].x + mesh->points[mesh->elements[i][1]].x + mesh->points[mesh->elements[i][2]].x)/3.0;
             double y = (mesh->points[mesh->elements[i][0]].y + mesh->points[mesh->elements[i][1]].y + mesh->points[mesh->elements[i][2]].y)/3.0;
-            c1[i] = x > 0 ? 4.0 : 0.5;
-            c2[i] = x > 0 ? 2.0 : 0.25;
-            c1[i] = 4.0;
-            c2[i] = 2.0;
-            rho[i] = 1.0;
+            c1[i] = x < 0 ? 1.0 : 0.5;
+            c2[i] = x < 0 ? 0.5 : 0.25;
+            rho[i] = x < 0 ? 1.0 : 4.0;
+            //c1[i] = 40.0;
+            //c2[i] = 20.0;
+            //rho[i] = 1.0;
         }
     }
 
@@ -128,7 +129,7 @@ class linela2d
             int tn = mesh->triangles[i][0];
             if (x > -3 && x < -1)
             {
-                data[i].vx = -1.0/(rho[tn]*c3(tn)) * sin((x+3)/2.0*M_PI);
+                data[i].vx = 1.0/(rho[tn]*c3(tn)) * sin((x+3)/2.0*M_PI);
                 data[i].vy = 0;
                 data[i].sxx = c1[tn]/c3(tn) * sin((x+3)/2.0*M_PI);
                 data[i].sxy = 0;

@@ -149,7 +149,7 @@ void linela2d::calculate_point_elements()
     for (int i = 0; i < mesh->get_number_of_points(); i++)
         for (int k = 1; k < 5; k++)
         {
-            vector2d p = mesh->get_point(i) + lambda_hint * tau * directions[k];
+            vector2d p = mesh->get_point(i) - lambda_hint * tau * directions[k];
             if ( !mesh->is_inside(p) ) mesh->make_inside_vector(p);
             for (int j = 0; j < mesh->triangles[i].size(); j++)
             {
@@ -186,7 +186,7 @@ void linela2d::step_X()
         diff_rd.w[0] = 0;
         for (int k = 1; k < 5; k++)
         {
-            vector2d p = mesh->get_point(i) + lambda[k] * tau * directions[2];
+            vector2d p = mesh->get_point(i) - lambda[k] * tau * directions[2];
             if ( !mesh->is_inside(p) ) mesh->make_inside_vector(p);
             diff_rd.w[k] = approximate(p, eldata_X[i].el[(k-1)%2], rdata[(k-1)%2] , k) - rdata_here.w[k];
         }
@@ -211,7 +211,7 @@ void linela2d::step_Y()
         diff_rd.w[0] = 0;
         for (int k = 1; k < 5; k++)
         {
-            vector2d p = mesh->get_point(i) + lambda[k] * tau * directions[4];
+            vector2d p = mesh->get_point(i) - lambda[k] * tau * directions[4];
             if ( !mesh->is_inside(p) ) mesh->make_inside_vector(p);
             diff_rd.w[k] = approximate(p, eldata_Y[i].el[(k-1)%2], rdata[(k-1)%2] , k) - rdata_here.w[k];
         }
