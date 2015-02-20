@@ -30,6 +30,17 @@ struct point_data
         sxy += pd.sxy;
         syy += pd.syy;
     }
+
+    point_data operator+(point_data & pd)
+    {
+        point_data temp;
+        temp.vx = vx + pd.vx;
+        temp.vy = vy + pd.vy;
+        temp.sxx = sxx + pd.sxx;
+        temp.sxy = sxy + pd.sxy;
+        temp.syy = syy + pd.syy;
+        return temp;
+    }
 };
 
 struct riemann_data
@@ -41,6 +52,8 @@ struct elements_data
 {
     int el[2];
 };
+
+enum border_type {CONTINUOUS, ABSORB, SYMMETRIC};
 
 class linela2d
 {
@@ -65,6 +78,10 @@ class linela2d
     bool is_monotonic;
     bool is_axes_random;
     double lambda_hint;
+
+    border_type hor_border_type = ABSORB;
+    border_type vert_border_type = ABSORB;
+
 
     inline double get_rho(int n) {return rho[n];}
     inline double get_c1(int n) {return c1[n];}
@@ -109,12 +126,25 @@ class linela2d
         {
             double x = (mesh->points[mesh->elements[i][0]].x + mesh->points[mesh->elements[i][1]].x + mesh->points[mesh->elements[i][2]].x)/3.0;
             double y = (mesh->points[mesh->elements[i][0]].y + mesh->points[mesh->elements[i][1]].y + mesh->points[mesh->elements[i][2]].y)/3.0;
-            c1[i] = x < 0 ? 1.0 : 0.5;
-            c2[i] = x < 0 ? 0.5 : 0.25;
-            rho[i] = x < 0 ? 1.0 : 4.0;
-            //c1[i] = 40.0;
-            //c2[i] = 20.0;
-            //rho[i] = 1.0;
+            vector2d v = vector2d(x, y);
+
+            /*
+            int submesh_num = mesh->find_submesh(v);
+            if (submesh_num < 0)
+            {
+                std::cout << "Error in Set parameters" << std::endl;
+                std::exit(1);
+            }
+            else
+            {
+                c1[i] = mesh->get_c1(submesh_num);
+                c2[i] = mesh->get_c2(submesh_num);
+                rho[i] = mesh->get_rho(submesh_num);
+            }
+            */
+            c1[i] = y < 0 ? 1.0 : 0.01;
+            c2[i] = y < 0 ? c1[i]/2 : c1[i]/2;
+            rho[i] = y < 0 ? 1.0 : 1.0;
         }
     }
 
@@ -126,14 +156,16 @@ class linela2d
             double y = mesh->points[i].y;
             vector2d v = vector2d(x, y);
             vector2d a = vector2d(0, 0);
-            int tn = mesh->triangles[i][0];
-            if (x > -3 && x < -1)
+            double start = 7;
+            double finish = 9;
+            if (y < finish && y > start && !mesh->triangles[i].empty())
             {
-                data[i].vx = 1.0/(rho[tn]*c3(tn)) * sin((x+3)/2.0*M_PI);
-                data[i].vy = 0;
-                data[i].sxx = c1[tn]/c3(tn) * sin((x+3)/2.0*M_PI);
+                int tn = mesh->triangles[i][0];
+                data[i].vx = 0;
+                data[i].vy = -1.0/(rho[tn]*c3(tn)) * sin((y-start)/(finish-start)*M_PI);
+                data[i].sxx = 1 * sin((y-start)/(finish-start)*M_PI);
                 data[i].sxy = 0;
-                data[i].syy = 1 * sin((x+3)/2.0*M_PI);
+                data[i].syy = c1[tn]/c3(tn) * sin((y-start)/(finish-start)*M_PI);
             }
             else
             {
@@ -143,8 +175,27 @@ class linela2d
                 data[i].sxy = 0;
                 data[i].syy = 0;
             }
+            /*
+            if (x < 5 && x > 25)
+            {
+                data[i].vx = 1.0/(rho[tn]*c3(tn)) * sin((x-5)/20.0*M_PI);
+                data[i].vy = 0.0;
+                data[i].sxx = 0.0;
+                data[i].sxy = 1 * sin((x-5)/20.0*M_PI);
+                data[i].syy = c1[tn]/c3(tn) * sin((x-5)/2.0*M_PI);
+            }
+            else
+            {
+                data[i].vx = 0;
+                data[i].vy = 0;
+                data[i].sxx = 0;
+                data[i].sxy = 0;
+                data[i].syy = 0;
+            }*/
         }
     }
+
+    // /////////////////////////////
 
 public:
     linela2d (std::string path, mesh_2d * m)

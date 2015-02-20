@@ -37,13 +37,46 @@ extern "C" {
 #include <boost/property_tree/ptree.hpp>
 #include <boost/property_tree/ini_parser.hpp>
 
+struct segment
+{
+    int start, finish;
+};
+
+struct submesh
+{
+    double rho, c1, c2;
+    std::vector<segment> b_segments;
+    std::vector<double> points_x;
+    std::vector<double> points_y;
+};
+
+struct contour
+{
+    std::vector<segment> b_segments;
+    int type;
+};
+
 class mesh_2d
 {
 	// path to ini file
 	std::string path;
 
 	// sizes of the mesh
-	double size_x, size_y;
+    double size_x0, size_y0;
+    double size_x1, size_y1;
+
+    // submeshes
+    std::string submeshes_file;
+    //std::vector<point2d> subm_points;
+    std::vector<submesh> submeshes;
+
+    // contours
+    std::string contours_file;
+    std::vector<point2d> cont_points;
+    std::vector<contour> contours;
+
+    // is mesh structured or unstructured
+    bool is_complex;
 
 	// area of the triangles < h*h/2
 	double h, max_ang;
@@ -65,7 +98,7 @@ class mesh_2d
 	int number_of_main_points;
 
     // maximum triangle altitude
-    double max_altitude;
+    double min_altitude;
 
 public:
 
@@ -82,7 +115,7 @@ public:
 	std::vector<std::vector<int> > triangles;
 
     // maximum altitude among all elements
-    double get_max_altitude();
+    double get_min_altitude();
 
 	// voronoi areas for each point
 	// area is restricted by borders
@@ -96,8 +129,10 @@ public:
 	// Getters/setters
 	int get_number_of_points();
 	int get_number_of_main_points();
-    double get_size_x() {return size_x;};
-	double get_size_y() {return size_y;};
+    double get_x0() {return size_x0;};
+    double get_y0() {return size_x0;};
+    double get_size_x() {return size_x1 - size_x0;};
+    double get_size_y() {return size_y1 - size_y0;};
     double get_h() {return h;};
 	bool get_is_structured() {return is_structured;};
 	vector2d get_point(int n);
@@ -118,6 +153,11 @@ public:
 	// check if p is inside n's triangle
 	bool is_inside(vector2d p, int n);
 
+    int find_submesh(vector2d p);
+
+    double get_rho(int submesh_num) { return submeshes[submesh_num].rho; }
+    double get_c1(int submesh_num) { return submeshes[submesh_num].c1; }
+    double get_c2(int submesh_num) { return submeshes[submesh_num].c2; }
 
 private:
 
@@ -129,13 +169,20 @@ private:
 	void find_neighbors(triangulateio * mesh);
 	void find_triangles(triangulateio * mesh);
 	void find_voronoi_areas();
-    void find_max_altitude();
+    void find_min_altitude();
 
 	//check if point n is corner point
 	bool is_corner(int n);
 
+    void load_submeshes(std::string spath);
+    void load_contours(std::string cpath);
+    void create_complex_mesh();
+
+
 	void create_structured_mesh();
 	void create_unstructured_mesh();
+
+    int pnpoly(int nvert, double *vertx, double *verty, double testx, double testy);
 
     void init_triangulateio(triangulateio * in);
     void free_triangulateio(triangulateio * in);

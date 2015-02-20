@@ -8,19 +8,21 @@
 ///////////////////////////////////////////////////////////
 
 #include "mesh_2d.h"
+#include <fstream>
+#include <sstream>
 
 mesh_2d::mesh_2d(std::string path)
 {
 	read_from_file(path);
-    nx = static_cast<int>(size_x/h);
-    ny = static_cast<int>(size_y/h);
+    nx = static_cast<int>((size_x1 - size_x0)/h);
+    ny = static_cast<int>((size_y1 - size_y0)/h);
 }
 
 void mesh_2d::change_h_and_refine(double ht)
 {
     h = ht;
-    nx = static_cast<int>(size_x/h);
-    ny = static_cast<int>(size_y/h);
+    nx = static_cast<int>((size_x1 - size_x0)/h);
+    ny = static_cast<int>((size_y1 - size_y0)/h);
 	create_mesh();
 }
 
@@ -45,12 +47,21 @@ void mesh_2d::read_from_file(std::string path)
         std::cin.get();
         std::exit(1);
     }
-    size_x = pt.get<REAL>("Mesh.size_x");
-    size_y = pt.get<REAL>("Mesh.size_y");
+    string is_complex_str = pt.get<std::string>("Mesh.is_complex");
+    is_complex = ( is_complex_str == "true" || is_complex_str == "True" || is_complex_str == "TRUE" );
+
+    std::stringstream ssx(pt.get<std::string>("Mesh.sizes_x"));
+    ssx >> size_x0 >> size_x1;
+    std::stringstream ssy(pt.get<std::string>("Mesh.sizes_y"));
+    ssy >> size_y0 >> size_y1;
+
     h = pt.get<REAL>("Method.h");
     max_ang = pt.get<REAL>("Method.max_ang");
+    submeshes_file = pt.get<std::string>("Mesh.submeshes_file");
+    contours_file = pt.get<std::string>("Mesh.contours_file");
     string is_structured_str = pt.get<std::string>("Mesh.is_structured");
     is_structured = ( is_structured_str == "true" || is_structured_str == "True" || is_structured_str == "TRUE" );
+
     N = pt.get<int>("Method.N");
 }
 
@@ -103,21 +114,182 @@ void mesh_2d::free_triangulateio(triangulateio * in)
     if (in->normlist)              free(in->normlist);
 }
 
+int mesh_2d::pnpoly(int nvert, double *vertx, double *verty, double testx, double testy)
+{
+  int i, j, c = 0;
+  for (i = 0, j = nvert-1; i < nvert; j = i++) {
+    if ( ((verty[i]>testy) != (verty[j]>testy)) &&
+     (testx < (vertx[j]-vertx[i]) * (testy-verty[i]) / (verty[j]-verty[i]) + vertx[i]) )
+       c = !c;
+  }
+  return c;
+}
+
+int mesh_2d::find_submesh(vector2d p)
+{
+    for (int i = 0; i < submeshes.size(); i++)
+    {
+        if (pnpoly(submeshes[i].b_segments.size(), submeshes[i].points_x.data(),  submeshes[i].points_y.data(),
+                   p.x, p.y) == 1)
+        {
+            return i;
+        }
+    }
+    return -1;
+}
+
+void mesh_2d::load_submeshes(std::string spath)
+{
+    std::ifstream is (spath);
+    if (!is.is_open())
+    {
+        std::cout << "Unable to open file\n";
+        std::exit(1);
+    }
+    int n_of_submeshes;
+    is >> n_of_submeshes;
+    submeshes.resize(n_of_submeshes);
+    for (int i = 0; i < n_of_submeshes; i++)
+    {
+        int type;
+        is >> type >> submeshes[i].rho >> submeshes[i].c1 >> submeshes[i].c2;
+        int n_of_segments;
+        is >> n_of_segments;
+        submeshes[i].b_segments.resize(n_of_segments);
+        submeshes[i].points_x.resize(n_of_segments);
+        submeshes[i].points_y.resize(n_of_segments);
+        for (int j = 0; j < n_of_segments; j++)
+            is >> submeshes[i].b_segments[j].start >> submeshes[i].b_segments[j].finish;
+    }
+    int n_of_points;
+    is >> n_of_points;
+    std::vector<point2d> subm_points;
+    subm_points.resize(n_of_points);
+    for (int i = 0; i < n_of_points; i++)
+    {
+        is >> subm_points[i].x >> subm_points[i].y;
+    }
+    for (int i = 0; i < n_of_submeshes; i++)
+    {
+        for (int j = 0; j < submeshes[i].b_segments.size(); j++)
+        {
+            submeshes[i].points_x[j] = subm_points[submeshes[i].b_segments[j].start].x;
+            submeshes[i].points_y[j] = subm_points[submeshes[i].b_segments[j].start].y;
+        }
+    }
+}
+
+void mesh_2d::load_contours(std::string cpath)
+{
+    std::ifstream is (cpath);
+    if (!is.is_open())
+    {
+        std::cout << "Unable to open file\n";
+        std::exit(1);
+    }
+    int n_of_contours;
+    is >> n_of_contours;
+    contours.resize(n_of_contours);
+    for (int i = 0; i < n_of_contours; i++)
+    {
+        double c;
+        int n_of_segments;
+        is >> contours[i].type >> c >> c >> c >> n_of_segments;
+        contours[i].b_segments.resize(n_of_segments);
+        for (int j = 0; j < n_of_segments; j++)
+            is >> contours[i].b_segments[j].start >> contours[i].b_segments[j].finish;
+    }
+    int n_of_points;
+    is >> n_of_points;
+    cont_points.resize(n_of_points);
+    is >> cont_points[0].x >> cont_points[0].y;
+    double max_x = cont_points[0].x;
+    double max_y = cont_points[0].y;
+    double min_x = cont_points[0].x;
+    double min_y = cont_points[0].y;
+    for (int i = 1; i < n_of_points; i++)
+    {
+        is >> cont_points[i].x >> cont_points[i].y;
+        if (cont_points[i].x > max_x) max_x = cont_points[i].x;
+        if (cont_points[i].x < min_x) min_x = cont_points[i].x;
+        if (cont_points[i].y > max_y) max_y = cont_points[i].y;
+        if (cont_points[i].y < min_y) min_y = cont_points[i].y;
+    }
+    size_x0 = min_x;
+    size_x1 = max_x;
+    size_y0 = min_y;
+    size_y1 = max_y;
+}
 
 void mesh_2d::create_mesh()
 {
-    if ( is_structured )
-        create_structured_mesh();
+    if (is_complex)
+    {
+        load_submeshes(submeshes_file);
+        load_contours(contours_file);
+        create_complex_mesh();
+    }
     else
-        create_unstructured_mesh();
-    find_max_altitude();
+        if ( is_structured )
+            create_structured_mesh();
+        else
+            create_unstructured_mesh();
+    find_min_altitude();
+}
+
+void mesh_2d::create_complex_mesh()
+{
+    triangulateio in, mesh;
+    init_triangulateio(&in);
+    init_triangulateio(&mesh);
+    in.numberofpoints = cont_points.size();
+    in.numberofpointattributes = 0;
+    in.pointlist = (REAL *) malloc(in.numberofpoints * 2 * sizeof(REAL));
+    in.pointmarkerlist = (int *) NULL;
+    in.pointattributelist = (REAL *) NULL;
+    for (int i = 0; i < in.numberofpoints; i++)
+    {
+        in.pointlist[2*i] = cont_points[i].x;
+        in.pointlist[2*i+1] = cont_points[i].y;
+    }
+    in.numberofsegments = 0;
+    for (int i = 0; i < contours.size(); i++)
+    {
+        in.numberofsegments += contours[i].b_segments.size();
+    }
+    in.segmentlist = (int *) malloc(in.numberofsegments * 2 * sizeof(int));
+    int k = 0;
+    for (int i = 0; i < contours.size(); i++)
+    {
+        for (int j = 0; j < contours[i].b_segments.size(); j++)
+        {
+            in.segmentlist[2*k] = contours[i].b_segments[j].start;
+            in.segmentlist[2*k+1] = contours[i].b_segments[j].finish;
+            k += 1;
+        }
+    }
+    in.numberofholes = 0;
+    in.numberofregions = 0;
+
+    std::stringstream ss;
+    ss << "pzeQYqa" << std::fixed << h * h / 2;
+    std::string str;
+    ss >> str;
+    char * s = new char[str.size() + 1];
+    std::copy(str.begin(), str.end(), s);
+    s[str.size()] = '\0';
+    triangulate(s, &in, &mesh, (struct triangulateio *) NULL);
+    save_to_class_data(&mesh);
+    free_triangulateio(&in);
+    free_triangulateio(&mesh);
+    std::cout << "Mesh has been generated successfully." << std::endl;
 }
 
 void mesh_2d::create_unstructured_mesh()
 {
-    bool is_line = true;
-    double step_x = size_x / nx;
-    double step_y = size_y / ny;
+    bool is_line = false;
+    double step_x = (size_x1 - size_x0) / nx;
+    double step_y = (size_y1 - size_y0) / ny;
 	// Setting triangulateio in and out:
 	triangulateio in, mesh;
     init_triangulateio(&in);
@@ -132,24 +304,24 @@ void mesh_2d::create_unstructured_mesh()
 
     for ( int i = 0; i < nx; i++ )
     {
-        in.pointlist[2*i + 0] = -size_x/2 + i * step_x;
-        in.pointlist[2*i + 1] = -size_y/2;
-        in.pointlist[2*(nx + ny) + 2*i + 0] = size_x/2 - i * step_x;
-        in.pointlist[2*(nx + ny) + 2*i + 1] = size_y/2;
+        in.pointlist[2*i + 0] = size_x0 + i * step_x;
+        in.pointlist[2*i + 1] = size_y0;
+        in.pointlist[2*(nx + ny) + 2*i + 0] = size_x1 - i * step_x;
+        in.pointlist[2*(nx + ny) + 2*i + 1] = size_y1;
     }
     for ( int j = 0; j < ny; j++ )
     {
-        in.pointlist[2*nx + 2*j + 0] = +size_x/2;
-        in.pointlist[2*nx + 2*j + 1] = -size_y/2 + j * step_y;
-        in.pointlist[2*(2*nx + ny) + 2*j + 0] = -size_x/2;
-        in.pointlist[2*(2*nx + ny) + 2*j + 1] = +size_y/2 - j * step_y;
+        in.pointlist[2*nx + 2*j + 0] = +size_x1;
+        in.pointlist[2*nx + 2*j + 1] = size_y0 + j * step_y;
+        in.pointlist[2*(2*nx + ny) + 2*j + 0] = size_x0;
+        in.pointlist[2*(2*nx + ny) + 2*j + 1] = +size_y1 - j * step_y;
     }
     if (is_line)
     {
         for ( int j = 1; j < ny; j++ )
         {
             in.pointlist[2*(2*nx + 2*ny) + 2*(j-1) + 0] = 0.0;
-            in.pointlist[2*(2*nx + 2*ny) + 2*(j-1) + 1] = -size_y/2 + j * step_y;
+            in.pointlist[2*(2*nx + 2*ny) + 2*(j-1) + 1] = size_y0 + j * step_y;
         }
     }
 
@@ -270,13 +442,14 @@ void mesh_2d::save_to_class_data(triangulateio * mesh)
             triangles.back().insert(triangles.back().end(), triangles.at(mesh->trianglelist[3*i + 2]).begin(), triangles.at(mesh->trianglelist[3*i + 2]).end());
         }
     }
-    find_voronoi_areas();
+    if (false)//!is_complex)
+        find_voronoi_areas();
 }
 
 void mesh_2d::create_structured_mesh()
 {
-    double step_x = size_x / nx;
-    double step_y = size_y / ny;
+    double step_x = (size_x1 - size_x0) / nx;
+    double step_y = (size_y1 - size_y0) / ny;
     triangulateio mesh;
     mesh.numberofpoints = (nx+1)*(ny+1);
     mesh.pointlist = ((REAL *) malloc(mesh.numberofpoints * 2 * sizeof(REAL)));
@@ -296,29 +469,29 @@ void mesh_2d::create_structured_mesh()
     int pn = 0;
     for ( int i = 0; i < nx; i++ )
     {
-        mesh.pointlist[pn++] = -size_x/2 + step_x * i;
-        mesh.pointlist[pn++] = -size_y/2;
+        mesh.pointlist[pn++] = size_x0 + step_x * i;
+        mesh.pointlist[pn++] = size_y0;
     }
     for ( int j = 0; j < ny; j++ )
     {
-        mesh.pointlist[pn++] = +size_x/2;
-        mesh.pointlist[pn++] = -size_y/2 + step_y * j;
+        mesh.pointlist[pn++] = +size_x1;
+        mesh.pointlist[pn++] = size_y0 + step_y * j;
     }
     for ( int i = 0; i < nx; i++ )
     {
-        mesh.pointlist[pn++] = +size_x/2 - step_x * i;
-        mesh.pointlist[pn++] = +size_y/2;
+        mesh.pointlist[pn++] = +size_x1 - step_x * i;
+        mesh.pointlist[pn++] = +size_y1;
     }
     for ( int j = 0; j < ny; j++ )
     {
-        mesh.pointlist[pn++] = -size_x/2;
-        mesh.pointlist[pn++] = +size_y/2 - step_y * j;
+        mesh.pointlist[pn++] = size_x0;
+        mesh.pointlist[pn++] = +size_y1 - step_y * j;
     }
     for (int j = 1; j < ny; j++)
         for ( int i = 1; i < nx; i++ )
         {
-            mesh.pointlist[pn++] = -size_x/2 + step_x * i;
-            mesh.pointlist[pn++] = -size_y/2 + step_y * j;
+            mesh.pointlist[pn++] = size_x0 + step_x * i;
+            mesh.pointlist[pn++] = size_y0 + step_y * j;
         }
     int ei = 0, ti = 0;
     int p[4];
@@ -410,23 +583,26 @@ void mesh_2d::find_triangles(triangulateio * mesh)
 		triangles.at(mesh->trianglelist[3*i + 1]).push_back(i);
 		triangles.at(mesh->trianglelist[3*i + 2]).push_back(i);
 	}
-	for ( int i = 0; i < 2*(nx + ny); i++ )
-        for ( auto x : triangles.at(get_opposite_point_num(i)) )
-            if ( std::find(triangles.at(i).begin(), triangles.at(i).end(), x) == triangles.at(i).end() )
-                triangles.at(i).push_back(x);
-
-    std::vector<int> corners = {0, nx, nx+ny, 2*nx+ny};
-    for (auto i : corners)
-        for ( auto j : corners )
-            for ( auto x : triangles.at(j) )
+    if (!is_complex)
+    {
+        for ( int i = 0; i < 2*(nx + ny); i++ )
+            for ( auto x : triangles.at(get_opposite_point_num(i)) )
                 if ( std::find(triangles.at(i).begin(), triangles.at(i).end(), x) == triangles.at(i).end() )
                     triangles.at(i).push_back(x);
+
+        std::vector<int> corners = {0, nx, nx+ny, 2*nx+ny};
+        for (auto i : corners)
+            for ( auto j : corners )
+                for ( auto x : triangles.at(j) )
+                    if ( std::find(triangles.at(i).begin(), triangles.at(i).end(), x) == triangles.at(i).end() )
+                        triangles.at(i).push_back(x);
+    }
 }
 
 
-void mesh_2d::find_max_altitude()
+void mesh_2d::find_min_altitude()
 {
-    max_altitude = 0;
+    min_altitude = size_x1 - size_x0 + size_y1 - size_y0;
     for (int i = 0; i < get_number_of_triangles(); i++)
     {
         vector2d ra = points[elements[i][0]] - points[elements[i][1]];
@@ -435,20 +611,20 @@ void mesh_2d::find_max_altitude()
         double ha = Magnitude(ra - Dot(ra, rb) * rb / Magnitude(rb));
         double hb = Magnitude(rb - Dot(rb, rc) * rc / Magnitude(rc));
         double hc = Magnitude(rc - Dot(rc, ra) * ra / Magnitude(ra));
-        std::cout << i << " : " << max_altitude << " : " << ha << " : " << hb << " : " << hc <<std::endl;
-        if (ha > max_altitude) max_altitude = ha;
-        if (hb > max_altitude) max_altitude = hb;
-        if (hc > max_altitude) max_altitude = hc;
+        //std::cout << i << " : " << min_altitude << " : " << ha << " : " << hb << " : " << hc <<std::endl;
+        if (ha < min_altitude) min_altitude = ha;
+        if (hb < min_altitude) min_altitude = hb;
+        if (hc < min_altitude) min_altitude = hc;
     }
 }
 
-double mesh_2d::get_max_altitude()
+double mesh_2d::get_min_altitude()
 {
-    return max_altitude;
+    return min_altitude;
 }
 
 // Function that finds voronoi areas for each point and saves
-// voronoi diagram in out/voronoi.vtk
+// voronoi diagram in out/voronoi.vtk (only for simple rect mesh)
 void mesh_2d::find_voronoi_areas()
 {
     // Create file
@@ -465,10 +641,10 @@ void mesh_2d::find_voronoi_areas()
     for ( int i = 0; i < number_of_main_points; i++ )
     {
         // lines which correspond to the borders
-        coefs.push_back({0, 1, -size_y/2});
-        coefs.push_back({0, -1,-size_y/2});
-        coefs.push_back({1, 0, -size_x/2});
-        coefs.push_back({-1, 0, -size_x/2});
+        coefs.push_back({0, 1, size_y0});
+        coefs.push_back({0, -1,size_y0});
+        coefs.push_back({1, 0, size_x0});
+        coefs.push_back({-1, 0, size_x0});
         // lines which correspond to the neighbors
         for (int j : neighbors.at(i))
         {
@@ -615,17 +791,17 @@ vector2d mesh_2d::get_triangle_point(int n, int k)
 
 bool mesh_2d::is_inside(vector2d p)
 {
-	if (p.x < -size_x/2 || p.x > size_x/2 || p.y < -size_y/2 || p.y > size_y/2)
+    if (p.x < size_x0 || p.x > size_x1 || p.y < size_y0 || p.y > size_y1)
 		return false;
 	else return true;
 }
 
 void mesh_2d::make_inside_vector(vector2d & p)
 {
-    if (p.x < -size_x/2) p.x += size_x;
-    else if (p.x > size_x/2) p.x -= size_x;
-    if (p.y < -size_y/2) p.y += size_y;
-    else if (p.y > size_y/2) p.y -= size_y;
+    if (p.x < size_x0) p.x += size_x1-size_x0;
+    else if (p.x > size_x1) p.x -= size_x1-size_x0;
+    if (p.y < size_y0) p.y += size_y1 - size_y0;
+    else if (p.y > size_y1) p.y -= size_y1 - size_y0;
 }
 
 bool mesh_2d::is_inside(vector2d p, int n)

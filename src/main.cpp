@@ -20,6 +20,7 @@ int main()
     m.create_mesh();
 
     linela2d l = linela2d("lineala_2d.ini", &m);
+
     l.calculate();
 }
 

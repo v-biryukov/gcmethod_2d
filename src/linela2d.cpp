@@ -72,7 +72,9 @@ void linela2d::set_point_data_X(int pn, riemann_data & rd)
 
     if (is_axes_random)
         pd = rotate(pd, -1);
-    data[pn] += pd;
+
+    //data[pn] += pd;
+    data_new[pn] = data[pn] + pd;
 }
 
 riemann_data linela2d::get_riemann_inv_Y(int pn, int en0, int en1)
@@ -119,7 +121,8 @@ void linela2d::set_point_data_Y(int pn, riemann_data & rd)
     if (is_axes_random)
         pd = rotate(pd, -1);
 
-    data[pn] += pd;
+    //data[pn] += pd;
+    data_new[pn] = data[pn] + pd;
 }
 
 std::vector<double> linela2d::get_lambda_X(int point_n)
@@ -187,11 +190,17 @@ void linela2d::step_X()
         for (int k = 1; k < 5; k++)
         {
             vector2d p = mesh->get_point(i) - lambda[k] * tau * directions[2];
-            if ( !mesh->is_inside(p) ) mesh->make_inside_vector(p);
-            diff_rd.w[k] = approximate(p, eldata_X[i].el[(k-1)%2], rdata[(k-1)%2] , k) - rdata_here.w[k];
+            if ( mesh->is_inside(p) || hor_border_type == CONTINUOUS )
+            {
+                mesh->make_inside_vector(p);
+                diff_rd.w[k] = approximate(p, eldata_X[i].el[(k-1)%2], rdata[(k-1)%2] , k) - rdata_here.w[k];
+            }
+            else
+                diff_rd.w[k] = 0;
         }
         set_point_data_X(i, diff_rd);
     }
+    data_new.swap(data);
 }
 
 void linela2d::step_Y()
@@ -212,11 +221,17 @@ void linela2d::step_Y()
         for (int k = 1; k < 5; k++)
         {
             vector2d p = mesh->get_point(i) - lambda[k] * tau * directions[4];
-            if ( !mesh->is_inside(p) ) mesh->make_inside_vector(p);
-            diff_rd.w[k] = approximate(p, eldata_Y[i].el[(k-1)%2], rdata[(k-1)%2] , k) - rdata_here.w[k];
+            if ( mesh->is_inside(p) || vert_border_type == CONTINUOUS  )
+            {
+                mesh->make_inside_vector(p);
+                diff_rd.w[k] = approximate(p, eldata_Y[i].el[(k-1)%2], rdata[(k-1)%2] , k) - rdata_here.w[k];
+            }
+            else
+                diff_rd.w[k] = 0;
         }
         set_point_data_Y(i, diff_rd);
     }
+    data_new.swap(data);
 }
 
 void linela2d::step()
@@ -325,7 +340,7 @@ void linela2d::init()
     //rdata.resize(mesh->get_number_of_points());
     eldata_X.resize(mesh->get_number_of_points());
     eldata_Y.resize(mesh->get_number_of_points());
-    lambda_hint = mesh->get_max_altitude() / N / 2.0;
+    lambda_hint = mesh->get_min_altitude() / N / 2.0;
 
     directions.reserve(5);
     directions.push_back(vector2d(0, 0));
@@ -411,5 +426,45 @@ void linela2d::save_to_vtk(std::string name)
     for ( int i = 0; i < mesh->get_number_of_points(); i++ )
     {
         vtk_file <<  data[i].syy << "\n";
+    }
+    vtk_file << "SCALARS rho FLOAT\n";
+    vtk_file << "LOOKUP_TABLE default\n";
+    for ( int i = 0; i < mesh->get_number_of_points(); i++ )
+    {
+        double result = 0.0;
+        if (!mesh->triangles[i].empty())
+        {
+            for (int j = 0; j < mesh->triangles[i].size(); j++)
+                result += rho[mesh->triangles[i][j]];
+            result /= mesh->triangles[i].size();
+        }
+        vtk_file <<  result << "\n";
+
+    }
+    vtk_file << "SCALARS c1 FLOAT\n";
+    vtk_file << "LOOKUP_TABLE default\n";
+    for ( int i = 0; i < mesh->get_number_of_points(); i++ )
+    {
+        double result = 0.0;
+        if (!mesh->triangles[i].empty())
+        {
+            for (int j = 0; j < mesh->triangles[i].size(); j++)
+                result += c1[mesh->triangles[i][j]];
+            result /= mesh->triangles[i].size();
+        }
+        vtk_file <<  result << "\n";
+    }
+    vtk_file << "SCALARS c2 FLOAT\n";
+    vtk_file << "LOOKUP_TABLE default\n";
+    for ( int i = 0; i < mesh->get_number_of_points(); i++ )
+    {
+        double result = 0.0;
+        if (!mesh->triangles[i].empty())
+        {
+            for (int j = 0; j < mesh->triangles[i].size(); j++)
+                result += c2[mesh->triangles[i][j]];
+            result /= mesh->triangles[i].size();
+        }
+        vtk_file <<  result << "\n";
     }
 }
