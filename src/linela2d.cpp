@@ -11,28 +11,16 @@
 #include "linela2d.h"
 #include <sstream>
 
-point_data linela2d::rotate(point_data & origin, int sign)
-{
-    double rxx = directions[2].x;
-    double rxy = sign*directions[2].y;
-    double ryx = sign*directions[4].x;
-    double ryy = directions[4].y;
-    point_data result;
-    result.vx = rxx * origin.vx + rxy * origin.vy;
-    result.vy = ryx * origin.vx + ryy * origin.vy;
-    result.sxx = rxx*rxx*origin.sxx + 2*rxx*rxy*origin.sxy + rxy*rxy*origin.syy;
-    result.sxy = rxx*ryx*origin.sxx + (rxx*ryy+rxy*ryx)*origin.sxy + rxy*ryy*origin.syy;
-    result.syy = ryx*ryx*origin.sxx + 2*ryx*ryy*origin.sxy + ryy*ryy*origin.syy;
-    return result;
-}
+#define USE_SIMPLE_OMEGA
+
+// ////////////////////////////////////////////////////////////
+#ifdef USE_SIMPLE_OMEGA
+// /////////////////////////////////////////////////////////
+
 
 riemann_data linela2d::get_riemann_inv_X(int pn, int en0, int en1)
 {
-    point_data pd;
-    if (is_axes_random)
-        pd = rotate(data[pn], 1);
-    else
-        pd = data[pn];
+    point_data pd = data[pn];
     riemann_data rd;
 
 
@@ -48,6 +36,7 @@ riemann_data linela2d::get_riemann_inv_X(int pn, int en0, int en1)
 
     return rd;
 }
+
 
 riemann_data linela2d::get_riemann_inv_X(int pn, int en)
 {
@@ -70,20 +59,14 @@ void linela2d::set_point_data_X(int pn, riemann_data & rd)
 
     pd.syy = rd.w[0] + rd.w[3] + rd.w[4];
 
-    if (is_axes_random)
-        pd = rotate(pd, -1);
-
-    //data[pn] += pd;
     data_new[pn] = data[pn] + pd;
 }
 
+
+
 riemann_data linela2d::get_riemann_inv_Y(int pn, int en0, int en1)
 {
-    point_data pd;
-    if (is_axes_random)
-        pd = rotate(data[pn], 1);
-    else
-        pd = data[pn];
+    point_data pd = data[pn];
     riemann_data rd;
 
     rd.w[0] =  0.0;//1.0                    * pd.sxx   - c30 / c10 * pd.syy;
@@ -97,6 +80,8 @@ riemann_data linela2d::get_riemann_inv_Y(int pn, int en0, int en1)
     rd.w[4] = +0.5 * c1[en1]*rho[en1] * pd.vy    +   0.5     * pd.syy;
     return rd;
 }
+
+
 riemann_data linela2d::get_riemann_inv_Y(int pn, int en)
 {
     return get_riemann_inv_Y(pn, en, en);
@@ -118,10 +103,6 @@ void linela2d::set_point_data_Y(int pn, riemann_data & rd)
 
     pd.syy = rd.w[3] + rd.w[4];
 
-    if (is_axes_random)
-        pd = rotate(pd, -1);
-
-    //data[pn] += pd;
     data_new[pn] = data[pn] + pd;
 }
 
@@ -146,6 +127,165 @@ std::vector<double> linela2d::get_lambda_Y(int point_n)
     lambda[4] = + c1[eldata_Y[point_n].el[1]];
     return lambda;
 }
+
+
+
+// ////////////////////////////////////////////////////////////
+#endif
+// /////////////////////////////////////////////////////////
+
+// ////////////////////////////////////////////////////////////
+#ifndef USE_SIMPLE_OMEGA
+// /////////////////////////////////////////////////////////
+
+
+
+riemann_data linela2d::get_riemann_inv_X(int pn, int en0, int en1)
+{
+    point_data pd = data[pn];
+    riemann_data rd;
+
+    double c1R = c1[en0];
+    double c1L = c1[en1];
+    double c2R = c2[en0];
+    double c2L = c2[en1];
+    double rR = rho[en0];
+    double rL = rho[en1];
+    double c3R = c3(en0);
+    double c3L = c3(en1);
+
+    rd.w[0] =  ((c1R*c3L-c1L*c3R)*rL*rR * pd.vx - (c3L*rL+c3R*rR) * pd.sxx)/(c1L*rL+c1R*rR) + pd.syy;
+
+    rd.w[1] =  (+c1L*c3R*rL*rR * pd.vx + c3R*rR * pd.sxx) / (c1L*rL+c1R*rR);
+
+    rd.w[2] =  (-c1R*c3L*rL*rR * pd.vx + c3L*rL * pd.sxx) / (c1L*rL+c1R*rR);
+
+    rd.w[3] =  (+c2L*c2R*rL*rR * pd.vy + c2R*rR * pd.sxy) / (c2L*rL + c2R*rR);
+
+    rd.w[4] =  (-c2L*c2R*rL*rR * pd.vy + c2L*rL * pd.sxy) / (c2L*rL + c2R*rR);
+
+    return rd;
+}
+
+riemann_data linela2d::get_riemann_inv_X(int pn, int en)
+{
+    return get_riemann_inv_X(pn, en, en);
+}
+
+void linela2d::set_point_data_X(int pn, riemann_data & rd)
+{
+    int en0 = eldata_X[pn].el[0];
+    int en1 = eldata_X[pn].el[1];
+    point_data pd;
+
+    double c1R = c1[en0];
+    double c1L = c1[en1];
+    double c2R = c2[en0];
+    double c2L = c2[en1];
+    double rR = rho[en0];
+    double rL = rho[en1];
+    double c3R = c3(en0);
+    double c3L = c3(en1);
+
+    pd.vx = +1.0/(c3R*rR) * rd.w[1] - 1.0/(c3L*rL) * rd.w[2];
+
+    pd.vy = +1.0/(c2R*rR) * rd.w[3] - 1.0/(c2L*rL) * rd.w[4];
+
+    pd.sxx = c1R/c3R * rd.w[1] + c1L/c3L * rd.w[2];
+
+    pd.sxy = rd.w[3] + rd.w[4];
+
+    pd.syy = rd.w[0] + rd.w[1] + rd.w[2];
+
+    data_new[pn] = data[pn] + pd;
+}
+
+riemann_data linela2d::get_riemann_inv_Y(int pn, int en0, int en1)
+{
+    point_data pd = data[pn];
+    riemann_data rd;
+
+    double c1R = c1[en0];
+    double c1L = c1[en1];
+    double c2R = c2[en0];
+    double c2L = c2[en1];
+    double rR = rho[en0];
+    double rL = rho[en1];
+    double c3R = c3(en0);
+    double c3L = c3(en1);
+
+
+    rd.w[0] = ((c1R*c3L-c1L*c3R)*rL*rR * pd.vy - (c3L*rL+c3R*rR) * pd.syy) / (c1L*rL+c1R*rR) + pd.sxx;
+
+    rd.w[1] = (+c1L*c1R*rL*rR * pd.vy + c1R*rR * pd.syy) / (c1L*rL+c1R*rR);
+
+    rd.w[2] = (-c1L*c1R*rL*rR * pd.vy + c1L*rL * pd.syy) / (c1L*rL+c1R*rR);
+
+    rd.w[3] = (+c2L*c2R*rL*rR * pd.vx + c2R*rR * pd.sxy) / (c2L*rL+c2R*rR);
+
+    rd.w[4] = (-c2L*c2R*rL*rR * pd.vx + c2L*rL * pd.sxy) / (c2L*rL+c2R*rR);
+
+    return rd;
+}
+riemann_data linela2d::get_riemann_inv_Y(int pn, int en)
+{
+    return get_riemann_inv_Y(pn, en, en);
+}
+
+void linela2d::set_point_data_Y(int pn, riemann_data & rd)
+{
+    int en0 = eldata_Y[pn].el[0];
+    int en1 = eldata_Y[pn].el[1];
+    point_data pd;
+
+    double c1R = c1[en0];
+    double c1L = c1[en1];
+    double c2R = c2[en0];
+    double c2L = c2[en1];
+    double rR = rho[en0];
+    double rL = rho[en1];
+    double c3R = c3(en0);
+    double c3L = c3(en1);
+
+    pd.vx = 1.0/(c2R*rR) * rd.w[3] - 1.0/(c2L*rL) * rd.w[4];
+
+    pd.vy = 1.0/(c1R*rR) * rd.w[1] - 1.0/(c1L*rL) * rd.w[2];
+
+    pd.sxx = rd.w[0] + c3R/c1R * rd.w[1] + c3L/c1L * rd.w[2];
+
+    pd.sxy = rd.w[3] + rd.w[4];
+
+    pd.syy = rd.w[1] + rd.w[2];
+
+    data_new[pn] = data[pn] + pd;
+}
+
+std::vector<double> linela2d::get_lambda_X(int point_n)
+{
+    std::vector<double> lambda(5);
+    lambda[0] = 0.0;
+    lambda[1] = - c1[eldata_X[point_n].el[0]];
+    lambda[2] = + c1[eldata_X[point_n].el[1]];
+    lambda[3] = - c2[eldata_X[point_n].el[0]];
+    lambda[4] = + c2[eldata_X[point_n].el[1]];
+    return lambda;
+}
+
+std::vector<double> linela2d::get_lambda_Y(int point_n)
+{
+    std::vector<double> lambda(5);
+    lambda[0] = 0.0;
+    lambda[1] = - c1[eldata_Y[point_n].el[0]];
+    lambda[2] = + c1[eldata_Y[point_n].el[1]];
+    lambda[3] = - c2[eldata_Y[point_n].el[0]];
+    lambda[4] = + c2[eldata_Y[point_n].el[1]];
+    return lambda;
+}
+
+
+// ////////////////////////////////////////////////////////////
+#endif
+// /////////////////////////////////////////////////////////
 
 void linela2d::calculate_point_elements()
 {
@@ -172,6 +312,13 @@ void linela2d::calculate_point_elements()
         }
 }
 
+
+// TODO
+void step_any(vector2d dir)
+{
+}
+
+
 void linela2d::step_X()
 {
     std::vector<std::vector<riemann_data> > rdata;
@@ -190,14 +337,15 @@ void linela2d::step_X()
         for (int k = 1; k < 5; k++)
         {
             vector2d p = mesh->get_point(i) - lambda[k] * tau * directions[2];
-            if ( mesh->is_inside(p) || hor_border_type == CONTINUOUS )
+            if (!mesh->is_inside(p))
             {
-                mesh->make_inside_vector(p);
-                diff_rd.w[k] = approximate(p, eldata_X[i].el[(k-1)%2], rdata[(k-1)%2] , k) - rdata_here.w[k];
+                diff_rd = riemann_data();
+                break;
             }
-            else
-                diff_rd.w[k] = 0;
+            //mesh->make_inside_vector(p);
+            diff_rd.w[k] = approximate(p, eldata_X[i].el[(k-1)%2], rdata[(k-1)%2] , k) - rdata_here.w[k];
         }
+
         set_point_data_X(i, diff_rd);
     }
     data_new.swap(data);
@@ -221,13 +369,13 @@ void linela2d::step_Y()
         for (int k = 1; k < 5; k++)
         {
             vector2d p = mesh->get_point(i) - lambda[k] * tau * directions[4];
-            if ( mesh->is_inside(p) || vert_border_type == CONTINUOUS  )
+            if (!mesh->is_inside(p))
             {
-                mesh->make_inside_vector(p);
-                diff_rd.w[k] = approximate(p, eldata_Y[i].el[(k-1)%2], rdata[(k-1)%2] , k) - rdata_here.w[k];
+                diff_rd = riemann_data();
+                break;
             }
-            else
-                diff_rd.w[k] = 0;
+            //mesh->make_inside_vector(p);
+            diff_rd.w[k] = approximate(p, eldata_Y[i].el[(k-1)%2], rdata[(k-1)%2] , k) - rdata_here.w[k];
         }
         set_point_data_Y(i, diff_rd);
     }
@@ -236,11 +384,6 @@ void linela2d::step_Y()
 
 void linela2d::step()
 {
-    if (is_axes_random)
-    {
-        set_directions(((double) rand() / (RAND_MAX)) * 2.0 * M_PI);
-        calculate_point_elements();
-    }
     step_X();
     step_Y();
 }
@@ -263,6 +406,11 @@ void linela2d::calculate()
 
 double linela2d::approximate(vector2d r, int tn, std::vector<riemann_data> & rdata, int k)
 {
+    if (!mesh->is_inside(r, tn))
+    {
+        std::cerr << "Error, point not in the cell!\n";
+        std::exit(1);
+    }
     vector2d ra = mesh->get_triangle_point(tn, 0);
     vector2d rb = mesh->get_triangle_point(tn, 1);
     vector2d rc = mesh->get_triangle_point(tn, 2);
@@ -324,6 +472,7 @@ double linela2d::approximate(vector2d r, int tn, std::vector<riemann_data> & rda
 
 void linela2d::set_directions(double angle)
 {
+    directions[0] = vector2d(0.0, 0.0);
     directions[2] = vector2d(cos(angle), sin(angle));
     directions[1] = - directions[2];
     directions[4] = vector2d(-sin(angle), cos(angle));
@@ -337,17 +486,12 @@ void linela2d::init()
     rho.resize(mesh->get_number_of_triangles());
     data.resize(mesh->get_number_of_points());
     data_new.resize(mesh->get_number_of_points());
-    //rdata.resize(mesh->get_number_of_points());
     eldata_X.resize(mesh->get_number_of_points());
     eldata_Y.resize(mesh->get_number_of_points());
-    lambda_hint = mesh->get_min_altitude() / N / 2.0;
+    lambda_hint = mesh->get_min_altitude() / N / 10.0;
 
     directions.reserve(5);
-    directions.push_back(vector2d(0, 0));
-    directions.push_back(vector2d(-1, 0));
-    directions.push_back(vector2d(1, 0));
-    directions.push_back(vector2d(0, -1));
-    directions.push_back(vector2d(0, 1));
+    set_directions(0.0);
 
     calculate_point_elements();
 }
