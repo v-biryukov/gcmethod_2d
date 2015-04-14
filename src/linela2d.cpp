@@ -411,11 +411,11 @@ void linela2d::postprocess_border_conditions(int axis)
         n = vector2d(1.0, 0.0);
     else
         n = vector2d(0.0, 1.0);
-    for (int i = 0; i < mesh->get_number_of_contour_points(); i++)
+    for (int i = 0; i < mesh->get_number_of_points(); i++)
     {
         if (mesh->point_types[i] == mesh_2d::ABSORB)
         {
-            data_new[i] = data[i];
+            // do nothing
         }
         else if (mesh->point_types[i] == mesh_2d::FREE)
         {
@@ -431,20 +431,33 @@ void linela2d::postprocess_border_conditions(int axis)
             double c3i = c1i - 2.0*c2i*c2i/c1i;
             rhoi /= mesh->triangles[i].size();
 
-            vector2d p = mesh->point_normals[i];
+//            vector2d p = mesh->point_normals[i];
+//            vector2d z = vector2d(data[i].sxx*p.x + data[i].sxy*p.y, data[i].sxy*p.x + data[i].syy*p.y);
+//            double om1 = (2.0*(p*n)*(n*z) - (p*z))/((c1i+c3i)*(n*p)*(n*p)-c3i*(p*p));
+//            vector2d b = (z-om1*c3i*p)/(c2i*(n*p));
+
+//            point_data u;
+
+//            u.vx =  +(om1*n.x - (n*b)*n.x + b.x)/rhoi;
+//            u.vy =  -(om1*n.y - (n*b)*n.y + b.y)/rhoi;
+//            u.sxx = -((c1i-c3i)*om1-2*c2i*(n*b))*n.x*n.x - c3i*om1 - 2.0*c2i*(n.x*b.x);
+//            u.sxy = -((c1i-c3i)*om1-2*c2i*(n*b))*n.x*n.y - c2i*(n.x*b.y+n.y*b.x);
+//            u.syy = -((c1i-c3i)*om1-2*c2i*(n*b))*n.y*n.y - c3i*om1 - 2.0*c2i*(n.y*b.y);
+//            data_new[i] += u;
+
+            vector2d p = -mesh->point_normals[i];
             vector2d z = vector2d(data[i].sxx*p.x + data[i].sxy*p.y, data[i].sxy*p.x + data[i].syy*p.y);
-            double om1 = (2.0*(p*n)*(n*z) - (p*z))/((c1i+c3i)*(n*p)*(n*p)-c3i*(p*p));
-            vector2d b = (z-om1*c3i*p)/(c2i*(n*p));
-
+            double lambda = c1i*c1i*rhoi - 2.0*c2i*c2i*rhoi;
+            double mu = c2i*c2i*rhoi;
             point_data u;
-
-            u.vx =  +(om1*n.x - (n*b)*n.x + b.x)/rhoi;
-            u.vy =  -(om1*n.y - (n*b)*n.y + b.y)/rhoi;
-            u.sxx = -((c1i-c3i)*om1-2*c2i*(n*b))*n.x*n.x - c3i*om1 - 2.0*c2i*(n.x*b.x);
-            u.sxy = -((c1i-c3i)*om1-2*c2i*(n*b))*n.x*n.y - c2i*(n.x*b.y+n.y*b.x);
-            u.syy = -((c1i-c3i)*om1-2*c2i*(n*b))*n.y*n.y - c3i*om1 - 2.0*c2i*(n.y*b.y);
+            u.vx =  -1.0/(rhoi*c2i)*z.x + 1.0/rhoi*(1.0/c2i-1.0/c1i)*(z*p)*p.x;
+            u.vy =  -1.0/(rhoi*c2i)*z.y + 1.0/rhoi*(1.0/c2i-1.0/c1i)*(z*p)*p.y;
+            u.sxx = - 2.0*(z.x*p.x) -     (z*p)/(lambda + 2*mu) * (lambda - 2.0*(lambda+mu)*p.x*p.x);
+            u.sxy = - (z.x*p.y+z.y*p.x) - (z*p)/(lambda + 2*mu) * (        -2.0*(lambda+mu)*p.x*p.y);
+            u.syy = - 2.0*(z.y*p.y) -     (z*p)/(lambda + 2*mu) * (lambda - 2.0*(lambda+mu)*p.y*p.y);
 
             data_new[i] += u;
+
         }
     }
 }
