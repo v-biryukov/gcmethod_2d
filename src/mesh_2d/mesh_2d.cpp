@@ -56,6 +56,7 @@ void mesh_2d::read_from_file(std::string path)
     ssy >> size_y0 >> size_y1;
 
     h = pt.get<REAL>("Method.h");
+    eps = 1e-10*h;
     max_ang = pt.get<REAL>("Method.max_ang");
     submeshes_file = pt.get<std::string>("Mesh.submeshes_file");
     contours_file = pt.get<std::string>("Mesh.contours_file");
@@ -125,6 +126,16 @@ int mesh_2d::pnpoly(int nvert, double *vertx, double *verty, double testx, doubl
   return c;
 }
 
+bool mesh_2d::is_inside_contour(vector2d p)
+{
+    return (find_submesh(p) >= 0);
+}
+
+bool mesh_2d::is_inside_contour(vector2d p, int pn)
+{
+    return (find_submesh(p-eps*point_normals[pn]) >= 0);
+}
+
 int mesh_2d::find_submesh(vector2d p)
 {
     for (int i = 0; i < submeshes.size(); i++)
@@ -178,6 +189,7 @@ void mesh_2d::load_submeshes(std::string spath)
         }
     }
 }
+
 
 void mesh_2d::load_contours(std::string cpath)
 {
@@ -279,6 +291,33 @@ void mesh_2d::create_complex_mesh()
     std::copy(str.begin(), str.end(), s);
     s[str.size()] = '\0';
     triangulate(s, &in, &mesh, (struct triangulateio *) NULL);
+
+
+    // Setting point types and normals
+    point_types.resize(mesh.numberofpoints, INNER);
+    point_normals.resize(mesh.numberofpoints, vector2d(0.0, 0.0));
+    for (int i = 0; i < contours.size(); i++)
+    {
+        for (int j = 0; j < contours[i].b_segments.size(); j++)
+        {
+            vector2d normal = (cont_points[contours[i].b_segments[j].finish]-cont_points[contours[i].b_segments[j].start]).rotate(M_PI/2);
+            normal = normal.Normalize();
+            vector2d middle = (cont_points[contours[i].b_segments[j].finish]+cont_points[contours[i].b_segments[j].start])/2.0;
+            if (is_inside_contour(middle + normal*h*0.5))
+                normal *= -1.0;
+            if (contours[i].type > (int)point_types[contours[i].b_segments[j].start])
+            {
+                point_types[contours[i].b_segments[j].start] = (point_type)contours[i].type;
+                point_normals[contours[i].b_segments[j].start] = normal;
+            }
+            if (contours[i].type > (int)point_types[contours[i].b_segments[j].finish])
+            {
+                point_types[contours[i].b_segments[j].finish] = (point_type)contours[i].type;
+                point_normals[contours[i].b_segments[j].finish] = normal;
+            }
+        }
+    }
+
     save_to_class_data(&mesh);
     free_triangulateio(&in);
     free_triangulateio(&mesh);
@@ -403,6 +442,13 @@ void mesh_2d::save_to_class_data(triangulateio * mesh)
         for ( int k = 1; k < N; k++ )
         {
             points.push_back(points.at(mesh->edgelist[2*i + 0]) + k * dp);
+            point_types.push_back(std::min(point_types.at(mesh->edgelist[2*i + 1]), point_types.at(mesh->edgelist[2*i + 0])));
+            vector2d normal;
+            if (SquaredMag(point_normals[mesh->edgelist[2*i + 0]]) > SquaredMag(point_normals[mesh->edgelist[2*i + 1]]))
+                normal = point_normals[mesh->edgelist[2*i + 1]];
+            else
+                normal = point_normals[mesh->edgelist[2*i + 0]];
+            point_normals.push_back(normal);
             int ep0 = mesh->edgelist[2*i + 0];
             int ep1 = mesh->edgelist[2*i + 1];
             for (auto t : triangles.at(ep0))
@@ -436,6 +482,7 @@ void mesh_2d::save_to_class_data(triangulateio * mesh)
             vector2d lvec = (points.at(mesh->trianglelist[3*i + 1]) - points.at(mesh->trianglelist[3*i + 0]))/N;
             vector2d mvec = (points.at(mesh->trianglelist[3*i + 2]) - points.at(mesh->trianglelist[3*i + 1]))/N;
             points.push_back(points.at(mesh->trianglelist[3*i + 0]) + (l+2)*lvec + (m+1)*mvec);
+            point_types.push_back(INNER);
             elements.at(i).at(3 + 3*(N-1) + k) = points.size()-1;
             triangles.push_back(triangles.at(mesh->trianglelist[3*i + 0]));
             triangles.back().insert(triangles.back().end(), triangles.at(mesh->trianglelist[3*i + 1]).begin(), triangles.at(mesh->trianglelist[3*i + 1]).end());
@@ -769,6 +816,11 @@ int mesh_2d::get_number_of_points()
 	return points.size();
 }
 
+int mesh_2d::get_number_of_contour_points()
+{
+    return cont_points.size();
+}
+
 vector2d mesh_2d::get_point(int n)
 {
     return points.at(n);
@@ -791,29 +843,53 @@ vector2d mesh_2d::get_triangle_point(int n, int k)
 
 bool mesh_2d::is_inside(vector2d p)
 {
-    if (p.x < size_x0 || p.x > size_x1 || p.y < size_y0 || p.y > size_y1)
+    if (p.x < size_x0+eps || p.x > size_x1-eps || p.y < size_y0+eps || p.y > size_y1-eps)
 		return false;
 	else return true;
 }
 
-void mesh_2d::make_inside_vector(vector2d & p)
+void mesh_2d::make_inside_continuous(vector2d & p)
 {
-    if (p.x < size_x0) p.x += size_x1-size_x0;
-    else if (p.x > size_x1) p.x -= size_x1-size_x0;
-    if (p.y < size_y0) p.y += size_y1 - size_y0;
-    else if (p.y > size_y1) p.y -= size_y1 - size_y0;
+    if (p.x < size_x0)
+        p.x += size_x1-size_x0;
+    else if (p.x > size_x1)
+        p.x -= size_x1-size_x0;
+    if (p.y < size_y0)
+        p.y += size_y1 - size_y0;
+    else if (p.y > size_y1)
+        p.y -= size_y1 - size_y0;
+}
+
+void mesh_2d::make_inside_symmetric(vector2d & p)
+{
+    if (p.x < size_x0)
+        p.x += 2*(size_x0-p.x);
+    else if (p.x > size_x1)
+        p.x += 2*(size_x1-p.x);
+    if (p.y < size_y0)
+        p.y += 2*(size_y0-p.y);
+    else if (p.y > size_y1)
+        p.y += 2*(size_y1-p.y);
 }
 
 bool mesh_2d::is_inside(vector2d p, int n)
 {
-	bool b1, b2, b3;
-	vector2d v1 = get_triangle_point(n, 0);
-	vector2d v2 = get_triangle_point(n, 1);
-	vector2d v3 = get_triangle_point(n, 2);
-	b1 = Vec(p-v2, v1-v2) < 0.0;
-	b2 = Vec(p-v3, v2-v3) < 0.0;
-	b3 = Vec(p-v1, v3-v1) < 0.0;
-	return ((b1 == b2) && (b2 == b3));
+    bool b1, b2, b3;
+    vector2d v1 = get_triangle_point(n, 0);
+    vector2d v2 = get_triangle_point(n, 1);
+    vector2d v3 = get_triangle_point(n, 2);
+    b1 = Vec(p-v2, v1-v2) < 0.0;
+    b2 = Vec(p-v3, v2-v3) < 0.0;
+    b3 = Vec(p-v1, v3-v1) < 0.0;
+    return ((b1 == b2) && (b2 == b3));
+
+//    vector2d v =  p                        - get_triangle_point(n, 0);
+//    vector2d v1 = get_triangle_point(n, 1) - get_triangle_point(n, 0);
+//    vector2d v2 = get_triangle_point(n, 2) - get_triangle_point(n, 0);
+
+//    double t = (v.x*v1.y - v.y*v1.x)/(v1.y*v2.x-v1.x*v2.y);
+//    double s = (v.x*v2.y - v.y*v2.x)/(v1.x*v2.y-v1.y*v2.x);
+//    return t >= -eps && t <= 1.0+eps && s >= -eps && s <= 1.0+eps && s+t <= 1.0+eps;
 }
 
 bool mesh_2d::is_corner(int n)

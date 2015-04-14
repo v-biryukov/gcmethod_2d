@@ -67,7 +67,6 @@ class mesh_2d
 
     // submeshes
     std::string submeshes_file;
-    //std::vector<point2d> subm_points;
     std::vector<submesh> submeshes;
 
     // contours
@@ -87,7 +86,7 @@ class mesh_2d
 	// number of divisions of horisontal and vertical borders
     int nx, ny;
 
-    double eps = 1e-10;
+    double eps;
 
 	// step of the approximation
 	// besides 3 main points of a triangle
@@ -102,8 +101,12 @@ class mesh_2d
 
 public:
 
+    enum point_type {INNER, ABSORB, FREE, FORCE};
+
 	// points of the mesh (including additional points)
 	std::vector<vector2d> points;
+    std::vector<point_type> point_types;
+    std::vector<vector2d> point_normals;
 
 	// elements of the mesh: (N+1)(N+2)/2 point numbers for each element
 	std::vector<std::vector<int> > elements;
@@ -138,6 +141,7 @@ public:
 	vector2d get_point(int n);
 	int get_opposite_point_num(int n);
 	int get_number_of_triangles();
+    int get_number_of_contour_points();
 
 	//
 	void change_h_and_refine(double ht);
@@ -149,10 +153,16 @@ public:
 	// check if p is inside mesh
 	bool is_inside(vector2d p);
 	// make p to be inside of the mesh (assuming mesh is periodical)
-	void make_inside_vector(vector2d & p);
+    void make_inside_continuous(vector2d & p);
+    // make p to be inside of the mesh (assuming border of the mesh is symmetric)
+    void make_inside_symmetric(vector2d & p);
 	// check if p is inside n's triangle
 	bool is_inside(vector2d p, int n);
-
+    // check if p is inside whole area
+    bool is_inside_contour(vector2d p);
+    // check if p is inside whole area (with eps)
+    bool is_inside_contour(vector2d p, int pn);
+    // find number of submesh point is in
     int find_submesh(vector2d p);
 
     double get_rho(int submesh_num) { return submeshes[submesh_num].rho; }

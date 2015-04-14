@@ -126,7 +126,7 @@ void gcmethod_2d::step_any(vector2d step)
 	for ( int i = 0; i < mesh->get_number_of_points(); i++ )
 	{
 		p = mesh->get_point(i) + step;
-		if (!mesh->is_inside(p)) mesh->make_inside_vector(p);
+        if (!mesh->is_inside(p)) mesh->make_inside_continuous(p);
         for ( int n : mesh->triangles.at(i) )
             if (mesh->is_inside(p, n))
             {
@@ -153,7 +153,7 @@ void gcmethod_2d::calculate_weights(vector2d step)
 	for ( int i = 0; i < mesh->get_number_of_points(); i++ )
 	{
 		p = mesh->get_point(i) + step;
-		if (!mesh->is_inside(p)) mesh->make_inside_vector(p);
+        if (!mesh->is_inside(p)) mesh->make_inside_continuous(p);
         for ( int n : mesh->triangles.at(i) )
             if (mesh->is_inside(p, n))
             {
@@ -470,7 +470,7 @@ double gcmethod_2d::exact_solution( vector2d p, double t )
 {
     vector2d r = p - t * lambda * direction;
     while (!mesh->is_inside(r))
-        mesh->make_inside_vector(r);
+        mesh->make_inside_continuous(r);
     return initial_conditions(r);
 }
 

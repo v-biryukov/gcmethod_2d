@@ -58,7 +58,6 @@ struct elements_data
     int el[2];
 };
 
-enum border_type {CONTINUOUS, ABSORB, SYMMETRIC};
 
 class linela2d
 {
@@ -94,9 +93,6 @@ class linela2d
     bool is_axes_random;
     double lambda_hint;
 
-    border_type hor_border_type = ABSORB;
-    border_type vert_border_type = ABSORB;
-
 
     inline double get_rho(int n) {return rho[n];}
     inline double get_c1(int n) {return c1[n];}
@@ -125,6 +121,7 @@ class linela2d
 
     void step_X();
     void step_Y();
+    void postprocess_border_conditions(int axis);
     void step();
 
 
@@ -168,12 +165,12 @@ class linela2d
             double y = mesh->points[i].y;
             vector2d v = vector2d(x, y);
             vector2d a = vector2d(0, 0);
-            double start = 10;
-            double finish = 30;
+            double start = 50;
+            double finish = 70;
             if (x < finish && x > start && !mesh->triangles[i].empty())
             {
                 int tn = mesh->triangles[i][0];
-                data[i].vx = 1.0/(rho[tn]*c3(tn)) * sin((x-start)/(finish-start)*M_PI);
+                data[i].vx = 1.0/(rho[tn]*c3(tn)) * sin((x-start)/(finish-start)*M_PI);;
                 data[i].vy = 0;
                 data[i].sxx = c1[tn]/c3(tn) * sin((x-start)/(finish-start)*M_PI);
                 data[i].sxy = 0;

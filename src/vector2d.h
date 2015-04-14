@@ -107,6 +107,11 @@ class vector2d
             return (vector2d(x * v.x, y * v.y));
         }
 
+        vector2d rotate (const double alpha) const
+        {
+            return (vector2d(x * cos(alpha) - y * sin(alpha), x * sin(alpha) + y * cos(alpha)));
+        }
+
         bool operator ==(const vector2d& v) const
         {
             return ((fabs(x - v.x) < 1e-10) && (fabs(y - v.y) < 1e-10));
