@@ -300,21 +300,36 @@ void mesh_2d::create_complex_mesh()
     {
         for (int j = 0; j < contours[i].b_segments.size(); j++)
         {
+            // Some edges can be trivial. TODO
+            if (contours[i].b_segments[j].start == contours[i].b_segments[j].finish)
+                continue;
             vector2d normal = (cont_points[contours[i].b_segments[j].finish]-cont_points[contours[i].b_segments[j].start]).rotate(M_PI/2);
             normal = normal.Normalize();
             vector2d middle = (cont_points[contours[i].b_segments[j].finish]+cont_points[contours[i].b_segments[j].start])/2.0;
-            if (is_inside_contour(middle + normal*h*0.5))
+            if (is_inside_contour(middle + normal*h*0.1))
                 normal *= -1.0;
             if (contours[i].type > (int)point_types[contours[i].b_segments[j].start])
             {
                 point_types[contours[i].b_segments[j].start] = (point_type)contours[i].type;
-                point_normals[contours[i].b_segments[j].start] = normal;
             }
             if (contours[i].type > (int)point_types[contours[i].b_segments[j].finish])
             {
                 point_types[contours[i].b_segments[j].finish] = (point_type)contours[i].type;
-                point_normals[contours[i].b_segments[j].finish] = normal;
             }
+
+            if (!is_inside_contour(middle + normal*h*0.1))
+            {
+                point_normals[contours[i].b_segments[j].start]  += normal;
+                point_normals[contours[i].b_segments[j].finish] += normal;
+            }
+        }
+    }
+
+    for (int i = 0; i < point_normals.size(); i++)
+    {
+        if (Magnitude(point_normals[i]) > 0.1)
+        {
+            point_normals[i] = point_normals[i].Normalize();
         }
     }
 

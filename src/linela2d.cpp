@@ -443,10 +443,9 @@ void linela2d::postprocess_border_conditions(int axis)
 //            u.sxx = -((c1i-c3i)*om1-2*c2i*(n*b))*n.x*n.x - c3i*om1 - 2.0*c2i*(n.x*b.x);
 //            u.sxy = -((c1i-c3i)*om1-2*c2i*(n*b))*n.x*n.y - c2i*(n.x*b.y+n.y*b.x);
 //            u.syy = -((c1i-c3i)*om1-2*c2i*(n*b))*n.y*n.y - c3i*om1 - 2.0*c2i*(n.y*b.y);
-//            data_new[i] += u;
 
-            vector2d p = -mesh->point_normals[i];
-            vector2d z = vector2d(data[i].sxx*p.x + data[i].sxy*p.y, data[i].sxy*p.x + data[i].syy*p.y);
+            vector2d p = -mesh->point_normals[i];;
+            vector2d z = vector2d(data[i].sxx*p.x + data[i].sxy*p.y, data[i].sxy*p.x + data[i].syy*p.y) + 1*p;
             double lambda = c1i*c1i*rhoi - 2.0*c2i*c2i*rhoi;
             double mu = c2i*c2i*rhoi;
             point_data u;
