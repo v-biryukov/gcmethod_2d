@@ -64,6 +64,9 @@ class linela2d
     // pointer to a mesh
     mesh_2d * mesh;
 
+    // global time
+    double time;
+
     // Data on previous time layer
     std::vector<point_data> data;
     // Data on new time layer
@@ -86,7 +89,7 @@ class linela2d
     int N;
     //
     int saving_frequency;
-    double tau, h;
+    double tau, h, courant_multiplier;
     int number_of_steps;
     bool is_monotonic;
     //
@@ -134,7 +137,7 @@ class linela2d
 
     void set_parameters()
     {
-        for (int i = 0; i < mesh->get_number_of_triangles(); i++)
+        for (int i = 0; i < mesh->get_number_of_elements(); i++)
         {
             double x = (mesh->points[mesh->elements[i][0]].x + mesh->points[mesh->elements[i][1]].x + mesh->points[mesh->elements[i][2]].x)/3.0;
             double y = (mesh->points[mesh->elements[i][0]].y + mesh->points[mesh->elements[i][1]].y + mesh->points[mesh->elements[i][2]].y)/3.0;
@@ -145,7 +148,10 @@ class linela2d
             if (submesh_num < 0)
             {
                 std::cout << "Error in Set parameters" << std::endl;
-                std::exit(1);
+                c1[i] = mesh->get_c1(0);
+                c2[i] = mesh->get_c2(0);
+                rho[i] = mesh->get_rho(0);
+                //std::exit(1);
             }
             else
             {
@@ -165,16 +171,16 @@ class linela2d
             double y = mesh->points[i].y;
             vector2d v = vector2d(x, y);
             vector2d a = vector2d(0, 0);
-            double start = 50;
-            double finish = 70;
+            double start = 40;
+            double finish = 50;
             if (x < finish && x > start && !mesh->triangles[i].empty())
             {
                 int tn = mesh->triangles[i][0];
-                data[i].vx = 1.0/(rho[tn]*c3(tn)) * sin((x-start)/(finish-start)*M_PI);;
+                data[i].vx = 0;//1.0/(rho[tn]*c3(tn)) * sin((x-start)/(finish-start)*M_PI);;
                 data[i].vy = 0;
-                data[i].sxx = c1[tn]/c3(tn) * sin((x-start)/(finish-start)*M_PI);
+                data[i].sxx = 0;//c1[tn]/c3(tn) * sin((x-start)/(finish-start)*M_PI);
                 data[i].sxy = 0;
-                data[i].syy = 1 * sin((x-start)/(finish-start)*M_PI);
+                data[i].syy = 0;//1 * sin((x-start)/(finish-start)*M_PI);
             }
             else
             {
@@ -198,6 +204,7 @@ public:
         set_parameters();
         set_initial();
     }
+    void print_parameters();
     void calculate();
     void save_to_vtk(std::string name);
 };

@@ -99,9 +99,13 @@ class mesh_2d
     // maximum triangle altitude
     double min_altitude;
 
+    double courant_time_step;
+
 public:
 
-    enum point_type {INNER, ABSORB, FREE, FORCE};
+    enum point_type {INNER, FREE, FORCE, ABSORB};
+
+    std::vector<point_type> border_sequence;
 
 	// points of the mesh (including additional points)
 	std::vector<vector2d> points;
@@ -140,8 +144,10 @@ public:
 	bool get_is_structured() {return is_structured;};
 	vector2d get_point(int n);
 	int get_opposite_point_num(int n);
-	int get_number_of_triangles();
+    int get_number_of_elements();
     int get_number_of_contour_points();
+
+    vector2d get_center_point(int element_num);
 
 	//
 	void change_h_and_refine(double ht);
@@ -168,6 +174,13 @@ public:
     double get_rho(int submesh_num) { return submeshes[submesh_num].rho; }
     double get_c1(int submesh_num) { return submeshes[submesh_num].c1; }
     double get_c2(int submesh_num) { return submeshes[submesh_num].c2; }
+
+    double get_min_sound_speed();
+    double get_max_sound_speed();
+
+    void find_courant_time_step();
+
+    double get_courant_time_step();
 
 private:
 

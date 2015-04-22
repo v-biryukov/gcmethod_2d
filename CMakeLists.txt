@@ -1,7 +1,7 @@
 cmake_minimum_required (VERSION 2.6)
 project (gcmethod_2d)
 
-SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
+SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -fopenmp")
 
 set(${PROJECT_NAME}_headers src/convection_equation_solver.h src/linela2d.h src/tensor2d.h src/vector2d.h)
 set(${PROJECT_NAME}_sources src/convection_equation_solver.cpp src/linela2d.cpp src/main.cpp)

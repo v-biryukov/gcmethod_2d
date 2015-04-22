@@ -10,6 +10,7 @@
 #include "mesh_2d.h"
 #include <fstream>
 #include <sstream>
+#include <iostream>
 
 mesh_2d::mesh_2d(std::string path)
 {
@@ -56,7 +57,7 @@ void mesh_2d::read_from_file(std::string path)
     ssy >> size_y0 >> size_y1;
 
     h = pt.get<REAL>("Method.h");
-    eps = 1e-10*h;
+    eps = 1e-6*h;
     max_ang = pt.get<REAL>("Method.max_ang");
     submeshes_file = pt.get<std::string>("Mesh.submeshes_file");
     contours_file = pt.get<std::string>("Mesh.contours_file");
@@ -64,8 +65,24 @@ void mesh_2d::read_from_file(std::string path)
     is_structured = ( is_structured_str == "true" || is_structured_str == "True" || is_structured_str == "TRUE" );
 
     N = pt.get<int>("Method.N");
+    int number_of_border_types = pt.get<int>("Borders.number_of_border_types");
+    border_sequence.push_back(INNER);
+    for (int i = 1; i <= number_of_border_types; i++)
+    {
+        std::string current_type_str  = pt.get<std::string>("Borders.border_type_" + std::to_string(i));
+        if (current_type_str == "ABSORB")
+            border_sequence.push_back(ABSORB);
+        else if (current_type_str == "FREE")
+            border_sequence.push_back(FREE);
+        else if (current_type_str == "FORCE")
+            border_sequence.push_back(FORCE);
+        else
+        {
+            std::cerr << "Error! There is no such border type " << current_type_str << "!" << std::endl;
+            std::exit(1);
+        }
+    }
 }
-
 void mesh_2d::init_triangulateio(triangulateio * in)
 {
     in->pointlist = (REAL*)(NULL);
@@ -240,13 +257,17 @@ void mesh_2d::create_mesh()
         load_submeshes(submeshes_file);
         load_contours(contours_file);
         create_complex_mesh();
+        find_min_altitude();
+        find_courant_time_step();
     }
     else
+    {
         if ( is_structured )
             create_structured_mesh();
         else
             create_unstructured_mesh();
-    find_min_altitude();
+        find_min_altitude();
+    }
 }
 
 void mesh_2d::create_complex_mesh()
@@ -310,24 +331,22 @@ void mesh_2d::create_complex_mesh()
                 normal *= -1.0;
             if (contours[i].type > (int)point_types[contours[i].b_segments[j].start])
             {
-                point_types[contours[i].b_segments[j].start] = (point_type)contours[i].type;
+                point_types[contours[i].b_segments[j].start] = border_sequence[(point_type)contours[i].type];
             }
             if (contours[i].type > (int)point_types[contours[i].b_segments[j].finish])
             {
-                point_types[contours[i].b_segments[j].finish] = (point_type)contours[i].type;
+                point_types[contours[i].b_segments[j].finish] = border_sequence[(point_type)contours[i].type];
             }
 
-            if (!is_inside_contour(middle + normal*h*0.1))
-            {
-                point_normals[contours[i].b_segments[j].start]  += normal;
-                point_normals[contours[i].b_segments[j].finish] += normal;
-            }
+            point_normals[contours[i].b_segments[j].start]  += normal;
+            point_normals[contours[i].b_segments[j].finish] += normal;
+
         }
     }
 
     for (int i = 0; i < point_normals.size(); i++)
     {
-        if (Magnitude(point_normals[i]) > 0.1)
+        if (Magnitude(point_normals[i]) > 0.1) // TODO
         {
             point_normals[i] = point_normals[i].Normalize();
         }
@@ -665,14 +684,14 @@ void mesh_2d::find_triangles(triangulateio * mesh)
 void mesh_2d::find_min_altitude()
 {
     min_altitude = size_x1 - size_x0 + size_y1 - size_y0;
-    for (int i = 0; i < get_number_of_triangles(); i++)
+    for (int i = 0; i < get_number_of_elements(); i++)
     {
-        vector2d ra = points[elements[i][0]] - points[elements[i][1]];
-        vector2d rb = points[elements[i][1]] - points[elements[i][2]];
-        vector2d rc = points[elements[i][2]] - points[elements[i][0]];
-        double ha = Magnitude(ra - Dot(ra, rb) * rb / Magnitude(rb));
-        double hb = Magnitude(rb - Dot(rb, rc) * rc / Magnitude(rc));
-        double hc = Magnitude(rc - Dot(rc, ra) * ra / Magnitude(ra));
+        vector2d ra = points[elements[i][1]] - points[elements[i][0]];
+        vector2d rb = points[elements[i][2]] - points[elements[i][1]];
+        vector2d rc = points[elements[i][0]] - points[elements[i][2]];
+        double ha = Magnitude(ra - Dot(ra, rb) * rb / SquaredMag(rb) );
+        double hb = Magnitude(rb - Dot(rb, rc) * rc / SquaredMag(rc) );
+        double hc = Magnitude(rc - Dot(rc, ra) * ra / SquaredMag(ra) );
         //std::cout << i << " : " << min_altitude << " : " << ha << " : " << hb << " : " << hc <<std::endl;
         if (ha < min_altitude) min_altitude = ha;
         if (hb < min_altitude) min_altitude = hb;
@@ -680,9 +699,68 @@ void mesh_2d::find_min_altitude()
     }
 }
 
+
+
 double mesh_2d::get_min_altitude()
 {
     return min_altitude;
+}
+
+double mesh_2d::get_min_sound_speed()
+{
+    double min_sound_speed = std::min(submeshes[0].c1, submeshes[0].c2);
+    for (int i = 0; i < submeshes.size(); i++)
+    {
+        if (submeshes[i].c1 < min_sound_speed) min_sound_speed = submeshes[i].c1;
+        if (submeshes[i].c2 < min_sound_speed) min_sound_speed = submeshes[i].c2;
+    }
+    return min_sound_speed;
+}
+
+double mesh_2d::get_max_sound_speed()
+{
+    double max_sound_speed = std::max(submeshes[0].c1, submeshes[0].c2);
+    for (int i = 0; i < submeshes.size(); i++)
+    {
+        if (submeshes[i].c1 > max_sound_speed) max_sound_speed = submeshes[i].c1;
+        if (submeshes[i].c2 > max_sound_speed) max_sound_speed = submeshes[i].c2;
+    }
+    return max_sound_speed;
+}
+
+void mesh_2d::find_courant_time_step()
+{
+    courant_time_step = 10.0 * h / get_min_sound_speed();
+    for (int i = 0; i < get_number_of_elements(); i++)
+    {
+        vector2d element_center = (points[elements[i][0]]+points[elements[i][1]]+points[elements[i][2]])/3.0;
+        int submesh_num = find_submesh(element_center);
+        double c;
+        if (submesh_num < 0)
+            c = get_max_sound_speed();
+        else
+            c = std::max(submeshes.at(submesh_num).c1, submeshes.at(submesh_num).c2);//=c1
+
+        vector2d ra = points[elements[i][1]] - points[elements[i][0]];
+        vector2d rb = points[elements[i][2]] - points[elements[i][1]];
+        vector2d rc = points[elements[i][0]] - points[elements[i][2]];
+        double ha = Magnitude(ra - Dot(ra, rb) * rb / SquaredMag(rb) );
+        double hb = Magnitude(rb - Dot(rb, rc) * rc / SquaredMag(rc) );
+        double hc = Magnitude(rc - Dot(rc, ra) * ra / SquaredMag(ra) );
+
+        double courant_a = ha / c / N;
+        double courant_b = hb / c / N;
+        double courant_c = hc / c / N;
+
+        if (courant_a < courant_time_step) courant_time_step = courant_a;
+        if (courant_b < courant_time_step) courant_time_step = courant_b;
+        if (courant_c < courant_time_step) courant_time_step = courant_c;
+    }
+}
+
+double mesh_2d::get_courant_time_step()
+{
+    return courant_time_step;
 }
 
 // Function that finds voronoi areas for each point and saves
@@ -831,6 +909,11 @@ int mesh_2d::get_number_of_points()
 	return points.size();
 }
 
+int mesh_2d::get_number_of_main_points()
+{
+    return points.size() / (N*N);
+}
+
 int mesh_2d::get_number_of_contour_points()
 {
     return cont_points.size();
@@ -841,7 +924,7 @@ vector2d mesh_2d::get_point(int n)
     return points.at(n);
 }
 
-int mesh_2d::get_number_of_triangles()
+int mesh_2d::get_number_of_elements()
 {
 	return elements.size();
 }
@@ -898,19 +981,34 @@ bool mesh_2d::is_inside(vector2d p, int n)
     b3 = Vec(p-v1, v3-v1) < 0.0;
     return ((b1 == b2) && (b2 == b3));
 
-//    vector2d v =  p                        - get_triangle_point(n, 0);
-//    vector2d v1 = get_triangle_point(n, 1) - get_triangle_point(n, 0);
-//    vector2d v2 = get_triangle_point(n, 2) - get_triangle_point(n, 0);
+//    vector2d p1 = get_triangle_point(n, 0);
+//    vector2d p2 = get_triangle_point(n, 1);
+//    vector2d p3 = get_triangle_point(n, 2);
 
-//    double t = (v.x*v1.y - v.y*v1.x)/(v1.y*v2.x-v1.x*v2.y);
-//    double s = (v.x*v2.y - v.y*v2.x)/(v1.x*v2.y-v1.y*v2.x);
-//    return t >= -eps && t <= 1.0+eps && s >= -eps && s <= 1.0+eps && s+t <= 1.0+eps;
+//    double alpha = ((p2.y - p3.y)*(p.x - p3.x) + (p3.x - p2.x)*(p.y - p3.y)) /
+//            ((p2.y - p3.y)*(p1.x - p3.x) + (p3.x - p2.x)*(p1.y - p3.y));
+//    double beta = ((p3.y - p1.y)*(p.x - p3.x) + (p1.x - p3.x)*(p.y - p3.y)) /
+//           ((p2.y - p3.y)*(p1.x - p3.x) + (p3.x - p2.x)*(p1.y - p3.y));
+//    double gamma = 1.0f - alpha - beta;
+
+//    double eps = 1e-4*h;
+
+//    return alpha >= -eps && alpha <= 1.0+eps && beta >= -eps && beta <= 1.0+eps && gamma <= 1.0+eps;
 }
+
+vector2d mesh_2d::get_center_point(int element_num)
+{
+    return (points[elements[element_num][0]] +
+            points[elements[element_num][1]] +
+            points[elements[element_num][2]])/3.0;
+}
+
 
 bool mesh_2d::is_corner(int n)
 {
 	return (n == 0) || (n == nx) || (n == nx + ny) || (n == 2*nx + ny);
 }
+
 
 int mesh_2d::get_opposite_point_num(int n)
 {

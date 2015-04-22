@@ -48,8 +48,8 @@ void gcmethod_2d::save_to_vtk(std::string name)
 		vtk_file << mesh->get_point(i).x << " " << mesh->get_point(i).y << " "  << 0.0 << "\n";
     if ( !save_only_main_points )
     {
-        vtk_file << "\nPOLYGONS " << mesh->get_number_of_triangles()*N*N << " " << mesh->get_number_of_triangles()*N*N*4 << "\n";
-        for (int i = 0; i < mesh->get_number_of_triangles(); i++)
+        vtk_file << "\nPOLYGONS " << mesh->get_number_of_elements()*N*N << " " << mesh->get_number_of_elements()*N*N*4 << "\n";
+        for (int i = 0; i < mesh->get_number_of_elements(); i++)
         {
             if (N == 1)
                 vtk_file << 3 << " " << mesh->get_triangle_point_num(i,0) << " " << mesh->get_triangle_point_num(i,1) << " " << mesh->get_triangle_point_num(i,2) << "\n";
@@ -92,8 +92,8 @@ void gcmethod_2d::save_to_vtk(std::string name)
     }
     else
     {
-        vtk_file << "\nPOLYGONS " << mesh->get_number_of_triangles() << " " << mesh->get_number_of_triangles()*4 << "\n";
-        for (int i = 0; i < mesh->get_number_of_triangles(); i++)
+        vtk_file << "\nPOLYGONS " << mesh->get_number_of_elements() << " " << mesh->get_number_of_elements()*4 << "\n";
+        for (int i = 0; i < mesh->get_number_of_elements(); i++)
             vtk_file << 3 << " " << mesh->get_triangle_point_num(i,0) << " " << mesh->get_triangle_point_num(i,1) << " " << mesh->get_triangle_point_num(i,2) << "\n";
     }
 	vtk_file << "\nPOINT_DATA " << mesh->get_number_of_points() << "\n";;
