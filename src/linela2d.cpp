@@ -442,6 +442,7 @@ void linela2d::postprocess_border_conditions(int axis)
                 }
                 c1i /= mesh->triangles[i].size();
                 c2i /= mesh->triangles[i].size();
+
                 double c3i = c1i - 2.0*c2i*c2i/c1i;
                 rhoi /= mesh->triangles[i].size();
 
@@ -450,7 +451,7 @@ void linela2d::postprocess_border_conditions(int axis)
                 vector2d force;
                 if (mesh->point_types[i] == mesh_2d::FORCE)
                 {
-                    double f = 0.1;
+                    double f = 40.0;
                     double A = 5.0;
                     double delay = 3.0*sqrt(1.5)/M_PI/f;
                     double X = M_PI*f*(time - delay);

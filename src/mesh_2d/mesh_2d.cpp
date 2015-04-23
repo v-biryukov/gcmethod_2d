@@ -223,7 +223,9 @@ void mesh_2d::load_contours(std::string cpath)
     {
         double c;
         int n_of_segments;
-        is >> contours[i].type >> c >> c >> c >> n_of_segments;
+        int type_num;
+        is >> type_num >> c >> c >> c >> n_of_segments;
+        contours[i].type = (int)border_sequence[type_num];
         contours[i].b_segments.resize(n_of_segments);
         for (int j = 0; j < n_of_segments; j++)
             is >> contours[i].b_segments[j].start >> contours[i].b_segments[j].finish;
@@ -329,17 +331,19 @@ void mesh_2d::create_complex_mesh()
             vector2d middle = (cont_points[contours[i].b_segments[j].finish]+cont_points[contours[i].b_segments[j].start])/2.0;
             if (is_inside_contour(middle + normal*h*0.1))
                 normal *= -1.0;
-            if (contours[i].type > (int)point_types[contours[i].b_segments[j].start])
+            if ((int)point_types[contours[i].b_segments[j].start] < contours[i].type)
             {
-                point_types[contours[i].b_segments[j].start] = border_sequence[(point_type)contours[i].type];
+                point_types[contours[i].b_segments[j].start] = (point_type)contours[i].type;
+                point_normals[contours[i].b_segments[j].start]  = normal;
             }
-            if (contours[i].type > (int)point_types[contours[i].b_segments[j].finish])
+            if ((int)point_types[contours[i].b_segments[j].finish] < contours[i].type)
             {
-                point_types[contours[i].b_segments[j].finish] = border_sequence[(point_type)contours[i].type];
+                point_types[contours[i].b_segments[j].finish] = (point_type)contours[i].type;
+                point_normals[contours[i].b_segments[j].finish] = normal;
             }
 
-            point_normals[contours[i].b_segments[j].start]  += normal;
-            point_normals[contours[i].b_segments[j].finish] += normal;
+            //point_normals[contours[i].b_segments[j].start]  += normal;
+            //point_normals[contours[i].b_segments[j].finish] += normal;
 
         }
     }
@@ -478,7 +482,7 @@ void mesh_2d::save_to_class_data(triangulateio * mesh)
             points.push_back(points.at(mesh->edgelist[2*i + 0]) + k * dp);
             point_types.push_back(std::min(point_types.at(mesh->edgelist[2*i + 1]), point_types.at(mesh->edgelist[2*i + 0])));
             vector2d normal;
-            if (SquaredMag(point_normals[mesh->edgelist[2*i + 0]]) > SquaredMag(point_normals[mesh->edgelist[2*i + 1]]))
+            if (int(point_types[mesh->edgelist[2*i + 0]]) > int(point_types[mesh->edgelist[2*i + 1]]))
                 normal = point_normals[mesh->edgelist[2*i + 1]];
             else
                 normal = point_normals[mesh->edgelist[2*i + 0]];

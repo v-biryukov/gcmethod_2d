@@ -14,7 +14,7 @@
    id="svg2"
    version="1.1"
    inkscape:version="0.48.4 r9939"
-   sodipodi:docname="simple.svg">
+   sodipodi:docname="simple_force.svg">
   <metadata
      id="metadata17">
     <rdf:RDF>
@@ -37,8 +37,8 @@
      inkscape:pageopacity="0.0"
      inkscape:pageshadow="2"
      inkscape:zoom="4"
-     inkscape:cx="110.4566"
-     inkscape:cy="1000.7068"
+     inkscape:cx="132.13996"
+     inkscape:cy="977.82912"
      inkscape:document-units="px"
      inkscape:current-layer="layer1"
      showgrid="false"
@@ -75,8 +75,8 @@
        sodipodi:nodetypes="ccc"
        type="2" />
     <path
-       style="fill:none;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
-       d="m 0,0 c 100,0 100,0 100,0 l 0,0"
+       style="fill:none;stroke:#000000;stroke-width:0.71191394px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+       d="m 0,0 c 50.68215,0 50.68215,0 50.68215,0 l 0,0"
        id="path3006"
        inkscape:connector-curvature="0"
        type="2" />
@@ -86,6 +86,18 @@
        id="path3008"
        inkscape:connector-curvature="0"
        type="0" />
+    <path
+       style="fill:none;stroke:#000000;stroke-width:0.37334183px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1;display:inline"
+       d="m 50.68215,0 c 13.938413,0 13.938413,0 13.938413,0 l 0,0"
+       id="path3006-9"
+       inkscape:connector-curvature="0"
+       type="3" />
+    <path
+       style="fill:none;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+       d="M 64.620563,0 100,0 l 0,0"
+       id="path3015"
+       inkscape:connector-curvature="0"
+       type="2" />
   </g>
   <g
      inkscape:groupmode="layer"
